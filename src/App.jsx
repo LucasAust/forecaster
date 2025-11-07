@@ -14,7 +14,7 @@ export default function App() {
   const [openingBalance, setOpeningBalance] = useState(0);
   const [lowBalanceThreshold, setLowBalanceThreshold] = useState(500);
   const [horizon, setHorizon] = useState(30);
-  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+  const apiUrl = import.meta.env.VITE_API_URL || "https://forecaster-gl2n.onrender.com";
   
   // State for forecast data to pass to alerts
   const [forecastData, setForecastData] = useState([]);
