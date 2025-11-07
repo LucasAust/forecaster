@@ -27,159 +27,198 @@ def _parse_statement_arg(arg_value: str) -> Tuple[Path, str]:
     return path, stmt_type_normalized
 
 
-def load_transactions(statements: List[Tuple[Path, str]], engine: ForecastEngine) -> List[Dict[str, object]]:
-    combined: List[Dict[str, object]] = []
+def load_transactions(
+    statements: List[Tuple[Path, str]],
+    engine: ForecastEngine,
+) -> Tuple[List[Dict[str, object]], Dict[str, pd.DataFrame]]:
+    combined_raw: List[Dict[str, object]] = []
+    per_file_frames: Dict[str, pd.DataFrame] = {}
+
     for path, stmt_type in statements:
         with path.open("rb") as handle:
             parsed = parse_statement(handle, statement_type=stmt_type)
-        combined.extend(parsed.get("transactions", []))
 
-    sanitized = engine._sanitize_transactions(combined)
-    sanitized.sort(key=lambda entry: entry.get("date", ""))
-    return sanitized
+        transactions = parsed.get("transactions", []) or []
+        combined_raw.extend(transactions)
 
+        try:
+            sanitized_file = engine._sanitize_transactions(list(transactions))
+            per_file_frames[str(path)] = to_dataframe(sanitized_file)
+        except Exception:
+            per_file_frames[str(path)] = pd.DataFrame(columns=["date", "description", "amount", "category"])
 
-def to_dataframe(transactions: List[Dict[str, object]]) -> pd.DataFrame:
-    df = pd.DataFrame(transactions)
-    if df.empty:
-        return pd.DataFrame(columns=["date", "description", "amount", "category"])
-    df["date"] = pd.to_datetime(df["date"], errors="coerce")
-    df = df.dropna(subset=["date", "amount"])
-    df["amount"] = df["amount"].astype(float)
-    if "category" not in df.columns:
-        df["category"] = df["description"].apply(lambda desc: desc)
-    return df.sort_values("date").reset_index(drop=True)
+    sanitized_all = engine._sanitize_transactions(combined_raw)
+    sanitized_all.sort(key=lambda entry: entry.get("date", ""))
+    return sanitized_all, per_file_frames
 
 
-def generate_evaluation_dates(
-    df: pd.DataFrame,
-    horizon_days: int,
-    min_history_days: int,
-    step_days: int,
-) -> List[pd.Timestamp]:
-    if df.empty:
-        return []
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Backtest the ForecastEngine across historical windows.")
+    parser.add_argument(
+        "--statement",
+        action="append",
+        type=_parse_statement_arg,
+        required=True,
+        help="Statement source in the form '<path>:<statement_type>'. Repeat for multiple files.",
+    )
+    parser.add_argument(
+        "--method",
+        default="prophet",
+        help="Forecast method to evaluate (default: prophet). Currently only 'prophet' is available.",
+    )
+    parser.add_argument("--horizon", type=int, default=30, help="Forecast horizon in days (default: 30)")
+    parser.add_argument(
+        "--step",
+        type=int,
+        default=30,
+        help="Spacing between evaluation windows in days (default: 30)",
+    )
+    parser.add_argument(
+        "--min-history-days",
+        type=int,
+        default=120,
+        help="Minimum amount of history required before an evaluation window (default: 120)",
+    )
+    parser.add_argument(
+        "--opening-balance",
+        type=float,
+        default=0.0,
+        help="Balance prior to the earliest transaction in the dataset (default: 0)",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        help="Optional path to write detailed backtest results as CSV",
+    )
+    parser.add_argument(
+        "--debug-output-dir",
+        type=Path,
+        help="Directory to write per-window actual vs predicted CSV diagnostics",
+    )
 
-    min_date = df["date"].min()
-    max_date = df["date"].max()
-    horizon_delta = timedelta(days=horizon_days)
-    candidates = sorted(df["date"].dt.normalize().unique())
+    args = parser.parse_args()
 
-    evaluation_dates: List[pd.Timestamp] = []
-    last_selected: pd.Timestamp | None = None
-    for candidate in candidates:
-        candidate: pd.Timestamp
-        if candidate - min_date < timedelta(days=min_history_days):
+    engine = ForecastEngine()
+    transactions, per_file_frames = load_transactions(args.statement, engine)
+
+    for fname, frame in per_file_frames.items():
+        if frame.empty:
+            print(f"{fname}: no transactions after sanitization")
             continue
-        if candidate + horizon_delta > max_date:
-            continue
-        if last_selected and (candidate - last_selected).days < step_days:
-            continue
-        evaluation_dates.append(candidate)
-        last_selected = candidate
+        sample_size = min(len(frame), 8)
+        sample_values = frame["amount"].sample(n=sample_size, random_state=0).tolist()
+        print(f"{fname} sample signs: {sample_values}")
+        print(f"{fname} sum: {frame['amount'].sum()}")
 
-    return evaluation_dates
-
-
-def _categorize(engine: ForecastEngine, description: str) -> str:
-    return engine._categorize_transaction(description or "")
-
-
-def _prepare_transaction_records(df: pd.DataFrame) -> List[Dict[str, object]]:
-    if df.empty:
-        return []
-    records_df = df[["date", "description", "amount"]].copy()
-    records_df["date"] = records_df["date"].dt.strftime("%Y-%m-%d")
-    return records_df.to_dict(orient="records")
-
-
-def backtest(
-    engine: ForecastEngine,
-    df: pd.DataFrame,
-    evaluation_dates: List[pd.Timestamp],
-    horizon_days: int,
-    method: str,
-    opening_balance: float,
-) -> Tuple[List[Dict[str, object]], Dict[str, Dict[str, float]]]:
-    results: List[Dict[str, object]] = []
-    category_totals_actual: Dict[str, float] = defaultdict(float)
-    category_totals_pred: Dict[str, float] = defaultdict(float)
-
-    for start_date in evaluation_dates:
-        history_mask = df["date"] < start_date
-        future_mask = (df["date"] >= start_date) & (df["date"] < start_date + timedelta(days=horizon_days))
-
-        history_df = df.loc[history_mask]
-        future_df = df.loc[future_mask]
-        if history_df.empty or future_df.empty:
-            continue
-
-        history_span_days = (history_df["date"].max() - history_df["date"].min()).days if not history_df.empty else 0
-        history_records = _prepare_transaction_records(history_df)
-        opening_balance_at_start = opening_balance + float(history_df["amount"].sum())
-
-        forecast = engine.run_forecast(
-            opening_balance=opening_balance_at_start,
-            transactions=history_records,
-            scheduled=[],
-            horizon=horizon_days,
-            method=method,
-            as_of_date=start_date,
+    try:
+        df_tmp = to_dataframe(transactions)
+        category_aliases = engine._category_alias_map(df_tmp)
+        print("=== Category aliases (sample) ===")
+        for category, meta in category_aliases.items():
+            print(f"{category}: display={meta.get('display')} total_spend={meta.get('total_spend')}")
+        print("=== Top raw descriptions by abs total ===")
+        top_raw = (
+            df_tmp.assign(absamt=df_tmp["amount"].abs())
+            .groupby("description")["absamt"]
+            .sum()
+            .sort_values(ascending=False)
+            .head(20)
         )
+        print(top_raw)
+    except Exception as exc:
+        print("Alias diagnostics failed:", exc)
+        df_tmp = to_dataframe(transactions)
 
-        forecast_transactions = pd.DataFrame(forecast.get("transactions", []))
-        if forecast_transactions.empty:
-            continue
-        forecast_transactions["date"] = pd.to_datetime(forecast_transactions["date"], errors="coerce")
-        forecast_future = forecast_transactions[
-            (forecast_transactions["date"] >= start_date)
-            & (forecast_transactions["date"] < start_date + timedelta(days=horizon_days))
-            & (forecast_transactions.get("type") == "forecast")
-        ].copy()
-        if forecast_future.empty:
-            continue
+    df = df_tmp
+    if df.empty:
+        print("No transactions loaded. Aborting backtest.")
+        return
 
-        forecast_future["amount"] = forecast_future["amount"].astype(float)
-        forecast_future["category"] = forecast_future.get("category", "other")
+    evaluation_dates = generate_evaluation_dates(
+        df=df,
+        horizon_days=args.horizon,
+        min_history_days=args.min_history_days,
+        step_days=args.step,
+    )
+    if not evaluation_dates:
+        print("No evaluation windows satisfied the criteria. Adjust your parameters.")
+        return
 
-        future_df = future_df.copy()
-        future_df["category"] = future_df["description"].apply(lambda desc: _categorize(engine, desc))
+    results, category_summary = backtest(
+        engine=engine,
+        df=df,
+        evaluation_dates=evaluation_dates,
+        horizon_days=args.horizon,
+        method=args.method,
+        opening_balance=args.opening_balance,
+        debug_output_dir=args.debug_output_dir,
+    )
 
-        window_range = pd.date_range(start=start_date, periods=horizon_days, freq="D")
-        actual_daily = future_df.groupby("date")["amount"].sum().reindex(window_range, fill_value=0.0)
-        predicted_daily = forecast_future.groupby("date")["amount"].sum().reindex(window_range, fill_value=0.0)
+    if not results:
+        print("Backtest produced no results. Check history depth and horizon settings.")
+        return
 
-        daily_diff = predicted_daily - actual_daily
-        mae = float(np.mean(np.abs(daily_diff)))
-        rmse = float(np.sqrt(np.mean(daily_diff ** 2)))
+    results_df = pd.DataFrame(
+        [
+            {
+                key: (json.dumps(value) if isinstance(value, dict) else value)
+                for key, value in result.items()
+            }
+            for result in results
+        ]
+    )
 
-        net_actual = float(future_df["amount"].sum())
-        net_pred = float(predicted_daily.sum())
+    print(f"Evaluated {len(results)} windows using method '{args.method}' with horizon {args.horizon} days.")
+    print()
+    print("Per-window metrics (first few rows):")
+    print(
+        results_df[[
+            "start_date",
+            "history_days",
+            "actual_transactions",
+            "net_actual",
+            "net_pred",
+            "net_error",
+            "daily_mae",
+            "daily_rmse",
+        ]].head()
+    )
+    print()
 
-        income_actual = float(future_df[future_df["amount"] > 0]["amount"].sum())
-        income_pred = float(forecast_future[forecast_future["amount"] > 0]["amount"].sum())
-        expense_actual = float(-future_df[future_df["amount"] < 0]["amount"].sum())
-        expense_pred = float(-forecast_future[forecast_future["amount"] < 0]["amount"].sum())
+    net_error_mean = float(results_df["net_error"].mean())
+    net_error_median = float(results_df["net_error"].median())
+    mae_mean = float(results_df["daily_mae"].mean())
+    rmse_mean = float(results_df["daily_rmse"].mean())
 
-        final_balance_actual = opening_balance_at_start + net_actual
-        final_balance_pred = float(forecast["summary"].get("final_balance", opening_balance_at_start + net_pred))
+    print("Aggregate performance:")
+    print(f"  Mean net error: {format_currency(net_error_mean)}")
+    print(f"  Median net error: {format_currency(net_error_median)}")
+    print(f"  Mean daily MAE: {format_currency(mae_mean)}")
+    print(f"  Mean daily RMSE: {format_currency(rmse_mean)}")
+    print()
 
-        actual_category_totals = future_df.groupby("category")["amount"].sum().to_dict()
-        predicted_category_totals = forecast_future.groupby("category")["amount"].sum().to_dict()
+    actual_totals = category_summary["actual"]
+    predicted_totals = category_summary["predicted"]
+    all_categories = sorted(set(actual_totals) | set(predicted_totals))
+    print("Category totals across all windows:")
+    for category in all_categories:
+        actual_value = actual_totals.get(category, 0.0)
+        predicted_value = predicted_totals.get(category, 0.0)
+        diff = predicted_value - actual_value
+        print(
+            f"  {category:15s} actual {format_currency(actual_value):>12s} | "
+            f"pred {format_currency(predicted_value):>12s} | diff {format_currency(diff):>12s}"
+        )
+    print()
 
-        for category, value in actual_category_totals.items():
-            category_totals_actual[category] += float(value)
-        for category, value in predicted_category_totals.items():
-            category_totals_pred[category] += float(value)
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        results_df.to_csv(args.output, index=False)
+        print(f"Detailed results written to {args.output}")
 
-        result = {
-            "start_date": start_date.strftime("%Y-%m-%d"),
-            "horizon_days": horizon_days,
-            "history_days": history_span_days,
-            "history_transactions": len(history_records),
-            "actual_transactions": int(len(future_df)),
-            "predicted_transactions": int(len(forecast_future)),
-            "net_actual": net_actual,
+
+if __name__ == "__main__":
+    main()
             "net_pred": net_pred,
             "net_error": net_pred - net_actual,
             "income_actual": income_actual,
@@ -224,11 +263,43 @@ def main() -> None:
         default="prophet",
         help="Forecast method to evaluate (default: prophet). Currently only 'prophet' is available.",
     )
+    parser.add_argument(
+        "--debug-output-dir",
+        type=Path,
+        help="Directory to write per-window actual vs predicted CSV diagnostics",
+    )
     parser.add_argument("--horizon", type=int, default=30, help="Forecast horizon in days (default: 30)")
     parser.add_argument(
         "--step",
         type=int,
-        default=30,
+    transactions, per_file_frames = load_transactions(args.statement, engine)
+
+    for fname, frame in per_file_frames.items():
+        if frame.empty:
+            print(f"{fname}: no transactions after sanitization")
+            continue
+        sample_count = min(len(frame), 8)
+        sample_values = frame['amount'].sample(n=sample_count, random_state=0).tolist()
+        print(f"{fname} sample signs: {sample_values}")
+        print(f"{fname} sum: {frame['amount'].sum()}")
+
+    try:
+        df_tmp = to_dataframe(transactions)
+        category_aliases = engine._category_alias_map(df_tmp)
+        print("=== Category aliases (sample) ===")
+        for category, meta in category_aliases.items():
+            print(f"{category}: display={meta.get('display')} total_spend={meta.get('total_spend')}")
+        print("=== Top raw descriptions by abs total ===")
+        top_raw = (
+            df_tmp.assign(absamt=df_tmp['amount'].abs())
+            .groupby('description')['absamt']
+            .sum()
+            .sort_values(ascending=False)
+            .head(20)
+        )
+        print(top_raw)
+    except Exception as exc:
+        print("Alias diagnostics failed:", exc)
         help="Spacing between evaluation windows in days (default: 30)",
     )
     parser.add_argument(
@@ -242,11 +313,6 @@ def main() -> None:
         type=float,
         default=0.0,
         help="Balance prior to the earliest transaction in the dataset (default: 0)",
-    )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        help="Optional path to write detailed backtest results as CSV",
     )
 
     args = parser.parse_args()
@@ -271,10 +337,43 @@ def main() -> None:
     results, category_summary = backtest(
         engine=engine,
         df=df,
+    parser.add_argument(
+        "--debug-output-dir",
+        type=Path,
+        help="Directory to write per-window actual vs predicted CSV diagnostics",
+    )
         evaluation_dates=evaluation_dates,
         horizon_days=args.horizon,
         method=args.method,
         opening_balance=args.opening_balance,
+    transactions, per_file_frames = load_transactions(args.statement, engine)
+
+    for fname, frame in per_file_frames.items():
+        if frame.empty:
+            print(f"{fname}: no transactions after sanitization")
+            continue
+        sample_count = min(len(frame), 8)
+        sample_values = frame['amount'].sample(n=sample_count, random_state=0).tolist()
+        print(f"{fname} sample signs: {sample_values}")
+        print(f"{fname} sum: {frame['amount'].sum()}")
+
+    try:
+        df_tmp = to_dataframe(transactions)
+        category_aliases = engine._category_alias_map(df_tmp)
+        print("=== Category aliases (sample) ===")
+        for category, meta in category_aliases.items():
+            print(f"{category}: display={meta.get('display')} total_spend={meta.get('total_spend')}")
+        print("=== Top raw descriptions by abs total ===")
+        top_raw = (
+            df_tmp.assign(absamt=df_tmp['amount'].abs())
+            .groupby('description')['absamt']
+            .sum()
+            .sort_values(ascending=False)
+            .head(20)
+        )
+        print(top_raw)
+    except Exception as exc:
+        print("Alias diagnostics failed:", exc)
     )
 
     if not results:
