@@ -8,11 +8,24 @@ import numpy as np
 from datetime import datetime, timedelta
 from pandas.tseries.offsets import DateOffset
 
+Prophet = None
+_prophet_import_error = None
 try:
     from prophet import Prophet  # type: ignore
-except (ImportError, RuntimeError):
+except Exception as e:  # capture ImportError, RuntimeError, and others
     Prophet = None
+    # store a short and long message so callers can display helpful diagnostics
+    try:
+        import traceback
 
+        tb = ''.join(traceback.format_exception(type(e), e, e.__traceback__))
+    except Exception:
+        tb = str(e)
+    _prophet_import_error = {
+        "type": type(e).__name__,
+        "message": str(e),
+        "traceback": tb,
+    }
 class ForecastEngine:
     def __init__(self):
         # Common expense categories and their typical frequency patterns
@@ -259,6 +272,20 @@ class ForecastEngine:
         if ts.tzinfo is not None:
             return ts.tz_convert(None)
         return ts
+
+    @staticmethod
+    def _advance_month_same_day(reference_ts, months, target_day):
+        ts = ForecastEngine._to_naive_timestamp(reference_ts)
+        if pd.isna(ts):
+            return pd.NaT
+        if target_day is None:
+            target_day = ts.day
+
+        total_months = (ts.year * 12 + (ts.month - 1)) + months
+        year = total_months // 12
+        month = (total_months % 12) + 1
+        day = min(target_day, calendar.monthrange(year, month)[1])
+        return pd.Timestamp(year=year, month=month, day=day)
 
     def _is_internal_transfer(self, description):
         """Identify intra-account movements that should not influence forecasts."""
@@ -867,6 +894,7 @@ class ForecastEngine:
                 'description': group['description'].iloc[-1],
                 'normalized_description': desc_key,
                 'amount': float(avg_amount),
+                'last_amount': float(group['amount'].iloc[-1]),
                 'category': category,
                 'pattern': pattern,
                 'weekday': weekday_mode,
@@ -1625,6 +1653,9 @@ class ForecastEngine:
         if not templates:
             return pd.DataFrame(columns=['date', 'amount', 'category', 'description']), insights
 
+        rent_categories = {"rent"}
+        subscription_categories = {"subscriptions", "subscription"}
+
         scheduled_norm = {
             self._normalize_description(item.get('description', ''))
             for item in (scheduled or []) if item.get('description')
@@ -1659,6 +1690,7 @@ class ForecastEngine:
             if not pattern:
                 continue
             amount = template['amount']
+            category_key = str(template.get('category', '') or '').lower()
             current = self._to_naive_timestamp(template.get('last_date'))
             if pd.isna(current):
                 continue
@@ -1688,30 +1720,64 @@ class ForecastEngine:
                         DateOffset(months=3) if pattern == 'quarterly' else DateOffset(years=1)
                     )
 
-                next_date = self._to_naive_timestamp(current + offset)
-                if pd.isna(next_date):
-                    continue
+                if pattern == 'monthly' and category_key in (rent_categories | subscription_categories):
+                    base_ts = current
+                    target_day = template.get('day') or (base_ts.day if not pd.isna(base_ts) else None)
+                    if target_day is None:
+                        continue
+                    base_amount = template.get('last_amount', amount)
+                    next_date = self._advance_month_same_day(base_ts, 1, target_day)
+                    if pd.isna(next_date):
+                        continue
 
-                while next_date < start_ts:
-                    candidate = self._to_naive_timestamp(next_date + offset)
-                    if pd.isna(candidate) or candidate <= next_date:
-                        break
-                    next_date = candidate
+                    while next_date < start_ts:
+                        next_date = self._advance_month_same_day(next_date, 1, target_day)
+                        if pd.isna(next_date):
+                            break
+                    while not pd.isna(next_date) and next_date <= end_date:
+                        event_date = next_date.to_pydatetime()
+                        months_since = (event_date.year - base_ts.year) * 12 + (event_date.month - base_ts.month)
+                        months_since = max(months_since, 0)
+                        if category_key in rent_categories:
+                            years_since = months_since // 12
+                            projected_amount = float(round(base_amount * ((1.03) ** years_since), 2))
+                        else:
+                            projected_amount = float(round(base_amount, 2))
+                        template_events.append({
+                            'date': event_date,
+                            'amount': projected_amount,
+                            'category': template['category'],
+                            'description': template['description'] + ' (projected)',
+                            'source': 'recurring'
+                        })
+                        next_date = self._advance_month_same_day(next_date, 1, target_day)
+                        if pd.isna(next_date):
+                            break
+                else:
+                    next_date = self._to_naive_timestamp(current + offset)
+                    if pd.isna(next_date):
+                        continue
 
-                while next_date <= end_date:
-                    event_date = next_date.to_pydatetime()
-                    adjusted_amount = self._seasonal_adjust(amount, template['category'], event_date, seasonality)
-                    template_events.append({
-                        'date': event_date,
-                        'amount': adjusted_amount,
-                        'category': template['category'],
-                        'description': template['description'] + ' (projected)',
-                        'source': 'recurring'
-                    })
-                    candidate = self._to_naive_timestamp(next_date + offset)
-                    if pd.isna(candidate) or candidate <= next_date:
-                        break
-                    next_date = candidate
+                    while next_date < start_ts:
+                        candidate = self._to_naive_timestamp(next_date + offset)
+                        if pd.isna(candidate) or candidate <= next_date:
+                            break
+                        next_date = candidate
+
+                    while next_date <= end_date:
+                        event_date = next_date.to_pydatetime()
+                        adjusted_amount = self._seasonal_adjust(amount, template['category'], event_date, seasonality)
+                        template_events.append({
+                            'date': event_date,
+                            'amount': adjusted_amount,
+                            'category': template['category'],
+                            'description': template['description'] + ' (projected)',
+                            'source': 'recurring'
+                        })
+                        candidate = self._to_naive_timestamp(next_date + offset)
+                        if pd.isna(candidate) or candidate <= next_date:
+                            break
+                        next_date = candidate
 
             if template_events:
                 events.extend(template_events)
@@ -2196,6 +2262,7 @@ class ForecastEngine:
             "behavior": "behavior",
             "recurring": "recurring",
             "baseline": "baseline",
+            "hybrid": "hybrid",
         }
         normalized_mode = mode_map.get((method or "prophet").lower(), "prophet")
 
@@ -2236,15 +2303,29 @@ class ForecastEngine:
         # Expand scheduled events (rent, bills, paychecks)
         sched_df = self._expand_scheduled(scheduled, start_date, horizon)
 
-        allow_recurring = normalized_mode in {"prophet", "behavior", "recurring"}
-        allow_behavior = normalized_mode == "behavior"
-        allow_prophet = normalized_mode == "prophet"
+        allow_recurring = normalized_mode in {"prophet", "behavior", "recurring", "hybrid"}
+        allow_behavior = normalized_mode in {"behavior", "hybrid"}
+        allow_prophet = normalized_mode in {"prophet", "hybrid"}
 
         if allow_prophet and Prophet is None:
-            raise RuntimeError(
-                "Prophet forecasting requested but the 'prophet' package is not installed. "
-                "Install it with 'pip install prophet' in your active environment."
+            base_msg = "Prophet forecasting requested but the 'prophet' package is not available."
+            if _prophet_import_error:
+                base_msg += (
+                    f" Import error: {_prophet_import_error['type']}: "
+                    f"{_prophet_import_error['message']}"
+                )
+            guidance = (
+                " Install prophet (pip install prophet) and ensure CmdStan build "
+                "toolchain prerequisites are met."
             )
+            if normalized_mode == "hybrid":
+                warnings.warn(
+                    base_msg + guidance + " Falling back to behavior/recurring only.",
+                    RuntimeWarning,
+                )
+                allow_prophet = False
+            else:
+                raise RuntimeError(base_msg + guidance)
 
         empty_projection = pd.DataFrame(columns=['date', 'amount', 'category', 'description'])
         recurring_templates = []

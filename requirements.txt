@@ -1,6 +1,7 @@
 flask
+gunicorn
+flask-cors
 pandas
 numpy
 prophet
-gunicorn
-flask-cors
+cmdstanpy

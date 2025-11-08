@@ -1,3 +1,11 @@
+>>     1. Verify one time scheduling works
+>>     2. tweak the modal ui a little better for addig events"
+PS C:\code> Set-ExecutionPolicy -Scope Process Bypass
+>> .\.venv\Scripts\Activate.ps1                                                                                  
+                                           
+
+
+
 Great — this is a promising idea. I sketched a plan, identified the technical + regulatory pieces you’ll need, and built a short, runnable demo that projects a user’s future balances using (A) scheduled known events and (B) a simple statistical forecast based on historical daily net changes with exponential smoothing. I ran the demo and saved the combined projection CSV to /mnt/data/cashflow_forecast_sample.csv so you can download it from the UI.
 
 Below is a focused breakdown you can use to turn this into a real product, plus the key design/engineering choices and next steps.
