@@ -1,27 +1,36 @@
+# app.py
 import json
+import os
 from datetime import datetime
-
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from forecast_engine import ForecastEngine
 from statement_parser import parse_statement, StatementParseError
 
-app = Flask(__name__)
-CORS(app)  # Enable CORS for frontend
+# Create app and enable CORS
+app = Flask(__name__, static_folder="build", static_url_path="")
+CORS(app)
+
 engine = ForecastEngine()
 
+# API: basic health (not the Render healthz endpoint, add below)
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok"})
 
+# Render health check path (match Render settings)
+@app.route("/healthz", methods=["GET"])
+def healthz():
+    return jsonify({"status": "ok"})
+
 @app.route("/forecast", methods=["POST"])
 def forecast():
-    payload = request.get_json()
+    payload = request.get_json() or {}
     opening_balance = float(payload.get("opening_balance", 0.0))
     transactions = payload.get("transactions", [])
     scheduled = payload.get("scheduled", [])
     horizon_days = int(payload.get("horizon_days", 30))
-    method = payload.get("method", "prophet")  # Currently only "prophet" is supported
+    method = payload.get("method", "prophet")
 
     result = engine.run_forecast(opening_balance, transactions, scheduled, horizon_days, method)
     return jsonify(result)
@@ -29,6 +38,7 @@ def forecast():
 
 @app.route("/import/statement", methods=["POST"])
 def import_statement():
+    # Support both "files" list and single "file" field
     files = request.files.getlist("files")
     if not files:
         single = request.files.get("file")
@@ -149,5 +159,34 @@ def import_statement():
 
     return jsonify(response)
 
+
+# ---------------------------
+# Static file serving (SPA)
+# ---------------------------
+# If you want Flask to serve the React build, ensure the build output
+# is placed in a top-level `build/` directory in the repo.
+# These routes MUST come after your API routes so API calls are handled above.
+@app.route("/", defaults={"path": ""})
+@app.route("/<path:path>")
+def serve_spa(path):
+    build_dir = os.path.join(os.path.dirname(__file__), "build")
+    # If it is a real file in build, serve it directly
+    requested = os.path.join(build_dir, path)
+    if path and os.path.exists(requested) and os.path.isfile(requested):
+        return send_from_directory(build_dir, path)
+    # Otherwise serve index.html (SPA entrypoint)
+    index_path = os.path.join(build_dir, "index.html")
+    if os.path.exists(index_path):
+        return send_from_directory(build_dir, "index.html")
+    # If build is not present, return a helpful error
+    return (
+        jsonify({"error": "SPA build not found. Build your frontend or deploy frontend separately."}),
+        404,
+    )
+
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    # Development fallback. In production use gunicorn:
+    # gunicorn app:app --bind 0.0.0.0:$PORT --workers 4
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=False)
