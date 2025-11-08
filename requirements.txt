@@ -5,4 +5,5 @@ pandas
 numpy
 prophet
 cmdstanpy
-gunicorn
+matplotlib
+plotly

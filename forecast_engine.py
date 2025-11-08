@@ -97,6 +97,7 @@ class ForecastEngine:
             'phone',
             'utilities',
             'income',
+            'subscriptions',
         }
         self.behavior_extended_history_categories = {
             'rent',
@@ -106,6 +107,7 @@ class ForecastEngine:
             'phone',
             'utilities',
             'income',
+            'subscriptions',
         }
         self.behavior_skip_categories = {'other', 'healthcare', 'travel', 'gifts'}
         self.behavior_recent_total_days = 120
@@ -1076,7 +1078,20 @@ class ForecastEngine:
 
             return float(capped_event_amount)
 
+        constant_reconciliation_categories = {'rent', 'subscriptions', 'mortgage', 'income'}
+
         for category, config in self.reconciliation_categories.items():
+            cat_mask = forecast_mask & (combined_df['category'] == category)
+
+            if category in constant_reconciliation_categories and cat_mask.any() and 'projection_source' in combined_df.columns:
+                projected_sources = (
+                    combined_df.loc[cat_mask, 'projection_source']
+                    .astype(str)
+                    .str.lower()
+                )
+                if (projected_sources == 'recurring').any():
+                    continue
+
             polarity = config.get('polarity', 'any')
             target_total = self._compute_expected_total(history_df, category, horizon, polarity=polarity)
 
@@ -1097,7 +1112,6 @@ class ForecastEngine:
             if min_abs is not None and abs(target_total) < min_abs:
                 continue
 
-            cat_mask = forecast_mask & (combined_df['category'] == category)
             predicted_total = float(combined_df.loc[cat_mask, 'amount'].sum()) if cat_mask.any() else 0.0
 
             if cat_mask.any() and predicted_total * target_total < 0:
@@ -1655,6 +1669,8 @@ class ForecastEngine:
 
         rent_categories = {"rent"}
         subscription_categories = {"subscriptions", "subscription"}
+        income_categories = {"income"}
+        constant_monthly_categories = rent_categories | subscription_categories | income_categories
 
         scheduled_norm = {
             self._normalize_description(item.get('description', ''))
@@ -1720,7 +1736,7 @@ class ForecastEngine:
                         DateOffset(months=3) if pattern == 'quarterly' else DateOffset(years=1)
                     )
 
-                if pattern == 'monthly' and category_key in (rent_categories | subscription_categories):
+                if pattern == 'monthly' and category_key in constant_monthly_categories:
                     base_ts = current
                     target_day = template.get('day') or (base_ts.day if not pd.isna(base_ts) else None)
                     if target_day is None:
@@ -1741,6 +1757,8 @@ class ForecastEngine:
                         if category_key in rent_categories:
                             years_since = months_since // 12
                             projected_amount = float(round(base_amount * ((1.03) ** years_since), 2))
+                        elif category_key in income_categories:
+                            projected_amount = float(round(abs(base_amount), 2))
                         else:
                             projected_amount = float(round(base_amount, 2))
                         template_events.append({
@@ -2159,8 +2177,10 @@ class ForecastEngine:
 
         fallback_categories = self.behavior_extended_history_categories
 
+        constant_monthly_categories = {'rent', 'mortgage', 'subscriptions', 'income'}
+
         for category in fallback_categories:
-            if category in existing_categories:
+            if category in existing_categories and category != 'income':
                 continue
 
             cat_df = history_df[history_df['category'] == category].copy()
@@ -2173,7 +2193,9 @@ class ForecastEngine:
                 target_df = cat_df[cat_df['amount'] < -1e-6]
 
             if target_df.empty or len(target_df) < 2:
-                continue
+                required_points = 1 if category in constant_monthly_categories else 2
+                if len(target_df) < required_points:
+                    continue
 
             target_df = target_df.sort_values('date')
 
@@ -2213,16 +2235,32 @@ class ForecastEngine:
                 if recent_values.empty:
                     recent_values = target_df
 
-                avg_amount = float(recent_values['amount'].min())
+                if category in constant_monthly_categories:
+                    monthly_series = (
+                        target_df.set_index('date')['amount']
+                        .resample('MS')
+                        .sum()
+                    )
+                    monthly_series = monthly_series[monthly_series < -1e-6]
+                    if not monthly_series.empty:
+                        avg_amount = float(monthly_series.tail(min(3, len(monthly_series))).median())
+                    else:
+                        avg_amount = float(target_df['amount'].iloc[-1])
+                else:
+                    avg_amount = float(recent_values['amount'].min())
+
                 if avg_amount >= -1e-6:
                     continue
 
-                std_amount = float(recent_values['amount'].std() or 0.0)
+                std_amount = float(target_df['amount'].std() or 0.0)
 
             weekday_mode_series = target_df['date'].dt.weekday.mode()
             weekday_mode = int(weekday_mode_series.iloc[0]) if not weekday_mode_series.empty else int(last_event_ts.weekday())
             day_mode_series = target_df['date'].dt.day.mode()
-            day_mode = int(day_mode_series.iloc[0]) if not day_mode_series.empty else int(last_event_ts.day)
+            if category_is_income:
+                day_mode = int(last_event_ts.day)
+            else:
+                day_mode = int(day_mode_series.iloc[0]) if not day_mode_series.empty else int(last_event_ts.day)
 
             display_name = alias_info.get('display') if alias_info else category.replace('_', ' ').title()
 
@@ -2244,6 +2282,12 @@ class ForecastEngine:
                 'std_amount': std_amount,
                 'type': 'income' if avg_amount > 0 else 'expense'
             }
+
+            if category in constant_monthly_categories:
+                if category_is_income:
+                    template['last_amount'] = float(avg_amount)
+                else:
+                    template['last_amount'] = float(target_df['amount'].iloc[-1])
 
             pattern_meta = pattern_meta or {}
             if 'offset' in pattern_meta:
