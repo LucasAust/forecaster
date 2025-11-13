@@ -121,81 +121,73 @@ Time Horizon: ${forecastData.length} days
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 overflow-hidden">
-      <div className="bg-gradient-to-r from-teal-600 to-cyan-600 px-6 py-4">
-        <div className="flex items-center gap-2">
-          <span className="text-2xl">📤</span>
-          <h2 className="text-xl font-bold text-white">Export</h2>
-        </div>
-        <p className="text-teal-100 text-xs mt-1">
-          Share your forecast
-        </p>
-      </div>
-      <div className="p-6">
+    <div>
       
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 gap-2 mb-3">
         {/* Export Forecast CSV */}
         <button
           onClick={exportToCSV}
-          className="p-4 bg-gradient-to-br from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 border-2 border-green-200 hover:border-green-300 rounded-lg transition-all group"
+          className="glass-card-light p-3 rounded-lg hover:bg-white hover:bg-opacity-10 transition-all group"
         >
-          <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">📊</div>
-          <div className="font-semibold text-gray-800">Forecast CSV</div>
-          <div className="text-xs text-gray-600 mt-1">Daily balance data</div>
+          <div className="text-2xl mb-1">📊</div>
+          <div className="text-xs font-semibold text-white">Forecast CSV</div>
+          <div className="text-xs text-cyan-300 mt-0.5">Daily balance</div>
         </button>
 
         {/* Export Scheduled CSV */}
         <button
           onClick={exportScheduledToCSV}
-          className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 border-2 border-blue-200 hover:border-blue-300 rounded-lg transition-all group"
+          className="glass-card-light p-3 rounded-lg hover:bg-white hover:bg-opacity-10 transition-all group"
         >
-          <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">📋</div>
-          <div className="font-semibold text-gray-800">Bills CSV</div>
-          <div className="text-xs text-gray-600 mt-1">Recurring items</div>
+          <div className="text-2xl mb-1">📋</div>
+          <div className="text-xs font-semibold text-white">Bills CSV</div>
+          <div className="text-xs text-purple-300 mt-0.5">Recurring</div>
         </button>
 
         {/* Export Full JSON */}
         <button
           onClick={exportToJSON}
-          className="p-4 bg-gradient-to-br from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 border-2 border-purple-200 hover:border-purple-300 rounded-lg transition-all group"
+          className="glass-card-light p-3 rounded-lg hover:bg-white hover:bg-opacity-10 transition-all group"
         >
-          <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">💾</div>
-          <div className="font-semibold text-gray-800">Full Data</div>
-          <div className="text-xs text-gray-600 mt-1">JSON backup</div>
+          <div className="text-2xl mb-1">💾</div>
+          <div className="text-xs font-semibold text-white">Full Data</div>
+          <div className="text-xs text-pink-300 mt-0.5">JSON backup</div>
         </button>
 
         {/* Copy Summary */}
         <button
           onClick={copyToClipboard}
-          className="p-4 bg-gradient-to-br from-orange-50 to-yellow-50 hover:from-orange-100 hover:to-yellow-100 border-2 border-orange-200 hover:border-orange-300 rounded-lg transition-all group"
+          className="glass-card-light p-3 rounded-lg hover:bg-white hover:bg-opacity-10 transition-all group"
         >
-          <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">📋</div>
-          <div className="font-semibold text-gray-800">Copy Summary</div>
-          <div className="text-xs text-gray-600 mt-1">To clipboard</div>
+          <div className="text-2xl mb-1">📋</div>
+          <div className="text-xs font-semibold text-white">Copy</div>
+          <div className="text-xs text-yellow-300 mt-0.5">Clipboard</div>
         </button>
       </div>
 
       {/* Print Button */}
-      <div className="mt-4 pt-4 border-t">
-        <button
-          onClick={printForecast}
-          className="w-full p-3 bg-gray-100 hover:bg-gray-200 border-2 border-gray-300 rounded-lg font-medium text-gray-800 transition-all flex items-center justify-center gap-2"
-        >
-          <span className="text-xl">🖨️</span>
-          Print Forecast Report
-        </button>
-      </div>
+      <button
+        onClick={printForecast}
+        className="w-full metallic-button px-4 py-3 rounded-lg text-sm font-semibold text-white mb-3 flex items-center justify-center gap-2 hover:scale-105 transition-transform"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+        </svg>
+        Print Report
+      </button>
 
       {/* Tips */}
-      <div className="mt-4 p-3 bg-blue-50 rounded-lg text-sm">
-        <div className="font-medium mb-1">💡 Export Tips:</div>
-        <ul className="text-gray-700 space-y-1 ml-4 list-disc text-xs">
-          <li><strong>CSV files</strong> can be opened in Excel or Google Sheets</li>
-          <li><strong>JSON backup</strong> includes all data for re-importing later</li>
-          <li><strong>Copy summary</strong> for quick sharing via email/text</li>
-          <li><strong>Print</strong> creates a PDF-ready report (use "Save as PDF")</li>
+      <div className="glass-card-light rounded-lg p-3">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-base">💡</span>
+          <h4 className="font-semibold text-white text-xs">Export Tips:</h4>
+        </div>
+        <ul className="space-y-1 text-xs text-gray-400 leading-snug">
+          <li><strong className="text-green-400">CSV</strong> opens in Excel/Sheets</li>
+          <li><strong className="text-cyan-400">JSON</strong> full backup</li>
+          <li><strong className="text-purple-400">Copy</strong> quick share</li>
+          <li><strong className="text-pink-400">Print</strong> PDF report</li>
         </ul>
-      </div>
       </div>
     </div>
   );

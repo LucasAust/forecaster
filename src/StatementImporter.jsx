@@ -161,225 +161,136 @@ export default function StatementImporter({ apiUrl, onTransactionsImported }) {
   }, [fileEntries]);
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg border p-6 mb-6">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-2xl font-semibold text-gray-800">
-          📤 Import Bank & Card Statements
-        </h3>
-        {loading && <span className="text-sm text-gray-500">Parsing…</span>}
+    <div>
+      {/* Compact File Input */}
+      <div className="metallic-input rounded-lg p-3 border border-dashed border-cyan-500 border-opacity-30 hover:border-opacity-60 transition-all cursor-pointer mb-3">
+        <input
+          type="file"
+          accept=".csv,.txt"
+          multiple
+          onChange={handleFileChange}
+          className="hidden"
+          id="file-upload"
+        />
+        <label htmlFor="file-upload" className="cursor-pointer">
+          <div className="flex items-center gap-2 text-center">
+            <svg className="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            <div className="flex-1">
+              <div className="text-white text-sm font-semibold">Upload Files</div>
+              <div className="text-cyan-300 text-xs">CSV from bank/card</div>
+            </div>
+          </div>
+        </label>
       </div>
-      <p className="text-sm text-gray-600 mb-4">
-        Upload CSV exports from your bank or credit card provider. Mix and match multiple files and assign the correct statement type to each before parsing.
-      </p>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-4">
-        <div className="lg:col-span-6">
-          <label className="block text-xs font-semibold text-gray-600 mb-1">
-            Choose Statement Files
-          </label>
-          <input
-            type="file"
-            accept=".csv,.txt"
-            multiple
-            onChange={handleFileChange}
-            className="block w-full text-sm text-gray-700"
-          />
-
-          {fileSummary && fileSummary.length > 0 && (
-            <div className="mt-3 space-y-3">
-              {fileSummary.map((entry) => (
-                <div
-                  key={entry.id}
-                  className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 p-3 bg-gray-50 border rounded-lg"
-                >
-                  <div className="flex-1">
-                    <div className="text-sm font-medium text-gray-800 truncate" title={entry.name}>
-                      {entry.name}
+      {/* Compact File List */}
+      {fileSummary && fileSummary.length > 0 && (
+        <div className="space-y-2 mb-3">
+          {fileSummary.map((entry) => {
+            const formatFileName = (name) => {
+              if (name.length <= 30) return name;
+              const start = name.substring(0, 15);
+              const end = name.substring(name.length - 10);
+              return `${start}...${end}`;
+            };
+            
+            return (
+              <div key={entry.id} className="glass-card-light rounded-lg p-2">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium text-white" title={entry.name}>
+                      {formatFileName(entry.name)}
                     </div>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-cyan-300">
                       {(entry.size / 1024).toFixed(1)} KB
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={entry.type}
-                      onChange={(event) => handleTypeChange(entry.id, event.target.value)}
-                      className="p-2 border rounded-lg text-sm"
-                    >
-                      {STATEMENT_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={() => handleRemoveFile(entry.id)}
-                      className="px-3 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-xs font-medium transition-colors"
-                    >
-                      Remove
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => handleRemoveFile(entry.id)}
+                    className="px-2 py-1 bg-red-500 bg-opacity-20 hover:bg-opacity-40 text-red-400 rounded text-xs font-medium transition-all"
+                  >
+                    ×
+                  </button>
                 </div>
-              ))}
-            </div>
-          )}
+                <select
+                  value={entry.type}
+                  onChange={(event) => handleTypeChange(entry.id, event.target.value)}
+                  className="w-full metallic-input p-1 rounded text-xs text-white"
+                >
+                  {STATEMENT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value} className="bg-dark-surface">
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            );
+          })}
         </div>
+      )}
 
-        <div className="lg:col-span-3 flex items-end">
-          <button
-            onClick={handleParse}
-            disabled={!hasFiles || loading}
-            className={`w-full px-4 py-2 rounded-lg text-white text-sm font-medium transition-colors ${
-              !hasFiles || loading
-                ? "bg-gray-300 cursor-not-allowed"
-                : "bg-indigo-600 hover:bg-indigo-700"
-            }`}
-          >
-            {parseButtonLabel}
-          </button>
-        </div>
+      {/* Action Buttons */}
+      <div className="grid grid-cols-2 gap-2 mb-3">
+        <button
+          onClick={handleParse}
+          disabled={!hasFiles || loading}
+          className={`metallic-button px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+            !hasFiles || loading
+              ? "opacity-50 cursor-not-allowed"
+              : "text-white hover:scale-105"
+          }`}
+        >
+          {parseButtonLabel}
+        </button>
 
-        <div className="lg:col-span-3 flex items-end">
-          <button
-            onClick={handleApply}
-            disabled={!parsedTransactions.length}
-            className={`w-full px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              parsedTransactions.length
-                ? "bg-green-600 text-white hover:bg-green-700"
-                : "bg-gray-200 text-gray-400 cursor-not-allowed"
-            }`}
-          >
-            Add To Forecast
-          </button>
-        </div>
+        <button
+          onClick={handleApply}
+          disabled={!parsedTransactions.length}
+          className={`rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
+            parsedTransactions.length
+              ? "bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:scale-105"
+              : "bg-gray-600 bg-opacity-30 text-gray-500 cursor-not-allowed"
+          }`}
+        >
+          Apply
+        </button>
       </div>
 
+      {/* Messages */}
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-sm text-red-700 rounded-lg">
-          ⚠️ {error}
+        <div className="glass-card-light rounded-lg p-2 border-l-2 border-red-500 mb-3">
+          <div className="flex items-center gap-2 text-red-400 text-xs">
+            <span>⚠</span>
+            <span>{error}</span>
+          </div>
         </div>
       )}
 
       {success && (
-        <div className="mb-4 p-3 bg-green-50 border border-green-200 text-sm text-green-700 rounded-lg">
-          ✅ {success}
+        <div className="glass-card-light rounded-lg p-2 border-l-2 border-green-500 mb-3">
+          <div className="flex items-center gap-2 text-green-400 text-xs">
+            <span>✓</span>
+            <span>{success}</span>
+          </div>
         </div>
       )}
 
+      {/* Compact Summary */}
       {summary && (
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 text-sm mb-4">
-          <div className="p-3 bg-gray-50 rounded-lg border">
-            <div className="text-gray-500 uppercase text-xs font-semibold">Transactions</div>
-            <div className="text-xl font-bold text-gray-800">{summary.count}</div>
+        <div className="glass-card-light rounded-lg p-2 space-y-1">
+          <div className="flex justify-between text-xs">
+            <span className="text-cyan-400">Transactions:</span>
+            <span className="text-white font-bold">{summary.count}</span>
           </div>
-          <div className="p-3 bg-gray-50 rounded-lg border">
-            <div className="text-gray-500 uppercase text-xs font-semibold">Period</div>
-            <div className="text-sm text-gray-700">
-              {summary.start_date || "—"} → {summary.end_date || "—"}
-            </div>
+          <div className="flex justify-between text-xs">
+            <span className="text-red-400">Charges:</span>
+            <span className="text-red-400 font-bold">${Math.abs(summary.total_charges || 0).toFixed(0)}</span>
           </div>
-          <div className="p-3 bg-gray-50 rounded-lg border">
-            <div className="text-gray-500 uppercase text-xs font-semibold">Charges</div>
-            <div className="text-lg font-semibold text-red-600">${Math.abs(summary.total_charges || 0).toFixed(2)}</div>
-          </div>
-          <div className="p-3 bg-gray-50 rounded-lg border">
-            <div className="text-gray-500 uppercase text-xs font-semibold">Income</div>
-            <div className="text-lg font-semibold text-green-600">${Math.abs(summary.total_payments || 0).toFixed(2)}</div>
-          </div>
-          <div className="p-3 bg-gray-50 rounded-lg border">
-            <div className="text-gray-500 uppercase text-xs font-semibold">Net Change</div>
-            <div className={`text-lg font-semibold ${summary.net >= 0 ? "text-green-600" : "text-red-600"}`}>
-              ${Number(summary.net || 0).toFixed(2)}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {fileResults.length > 0 && (
-        <div className="mb-4">
-          <h4 className="font-semibold text-lg text-gray-800 mb-2">Imported Files</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {fileResults.map((result) => {
-              const label =
-                STATEMENT_OPTIONS.find((option) => option.value === result.statement_type)?.label ||
-                result.statement_type ||
-                "Statement";
-              const fileSummary = result.summary || {};
-              return (
-                <div
-                  key={`${result.filename}-${result.statement_type}`}
-                  className="p-3 bg-gray-50 border rounded-lg text-sm"
-                >
-                  <div className="font-semibold text-gray-700 mb-1 truncate" title={result.filename}>
-                    {result.filename || "Statement"}
-                  </div>
-                  <div className="text-xs uppercase text-gray-500 mb-2">{label}</div>
-                  <div className="space-y-1 text-xs text-gray-600">
-                    <div>
-                      Transactions: <span className="font-semibold text-gray-800">{result.transaction_count}</span>
-                    </div>
-                    {fileSummary?.start_date && fileSummary?.end_date && (
-                      <div>
-                        Period: <span className="font-semibold text-gray-800">{fileSummary.start_date} → {fileSummary.end_date}</span>
-                      </div>
-                    )}
-                    <div>
-                      Charges: <span className="font-semibold text-red-600">${Math.abs(fileSummary.total_charges || 0).toFixed(2)}</span>
-                    </div>
-                    <div>
-                      Income: <span className="font-semibold text-green-600">${Math.abs(fileSummary.total_payments || 0).toFixed(2)}</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {preview.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="font-semibold text-lg text-gray-800">
-              Preview ({preview.length} of {parsedTransactions.length})
-            </h4>
-            <span className="text-xs text-gray-500">
-              Verify dates, merchants, and amounts before importing
-            </span>
-          </div>
-          <div className="overflow-x-auto border rounded-lg">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-100 text-gray-600 uppercase text-xs">
-                <tr>
-                  <th className="px-4 py-2 text-left">Date</th>
-                  <th className="px-4 py-2 text-left">Description</th>
-                  <th className="px-4 py-2 text-left">Statement</th>
-                  <th className="px-4 py-2 text-right">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {preview.map((row, idx) => (
-                  <tr
-                    key={`${row.date || "undated"}-${idx}-${row.source_file || row.statement_type || "preview"}`}
-                    className="odd:bg-white even:bg-gray-50"
-                  >
-                    <td className="px-4 py-2 whitespace-nowrap text-gray-700">{row.date || "—"}</td>
-                    <td className="px-4 py-2 text-gray-700 max-w-xs truncate" title={row.description}>
-                      {row.description || "—"}
-                    </td>
-                    <td className="px-4 py-2 text-gray-600">
-                      {row.source_file ||
-                        (STATEMENT_OPTIONS.find((option) => option.value === row.statement_type)?.label ??
-                          row.statement_type ??
-                          "—")}
-                    </td>
-                    <td className={`px-4 py-2 text-right font-semibold ${row.amount < 0 ? "text-red-600" : "text-green-600"}`}>
-                      {row.amount < 0 ? "-" : "+"}${Math.abs(row.amount || 0).toFixed(2)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="flex justify-between text-xs">
+            <span className="text-green-400">Income:</span>
+            <span className="text-green-400 font-bold">${Math.abs(summary.total_payments || 0).toFixed(0)}</span>
           </div>
         </div>
       )}

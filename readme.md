@@ -1,7 +1,6 @@
 >>     1. Verify one time scheduling works
 >>     2. tweak the modal ui a little better for addig events"
-PS C:\code> Set-ExecutionPolicy -Scope Process Bypass
->> .\.venv\Scripts\Activate.ps1                                                                                  
+Set-ExecutionPolicy -Scope Process Bypass; .\.venv\Scripts\Activate.ps1                                                                               
                                            
 
 

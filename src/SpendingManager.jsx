@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 
-export default function SpendingManager({ scheduled, onScheduledChange, transactions, onTransactionsChange }) {
+export default function SpendingManager(props) {
+  const { scheduled = [], onScheduledChange } = props;
   const [showScheduled, setShowScheduled] = useState(false);
   const [showOneTime, setShowOneTime] = useState(false);
-  const [editingItem, setEditingItem] = useState(null);
-  
+
   // Form state for new items
   const [newScheduled, setNewScheduled] = useState({
     pattern: 'monthly',
@@ -13,7 +13,7 @@ export default function SpendingManager({ scheduled, onScheduledChange, transact
     amount: 0,
     description: ''
   });
-  
+
   const [newOneTime, setNewOneTime] = useState({
     date: new Date().toISOString().split('T')[0],
     amount: 0,
@@ -81,40 +81,33 @@ export default function SpendingManager({ scheduled, onScheduledChange, transact
     onScheduledChange(updated);
   };
 
-  const patternLabels = {
-    'monthly': 'Monthly',
-    'biweekly': 'Bi-weekly',
-    'weekly': 'Weekly',
-    'oneoff': 'One-time'
-  };
-
   const weekdayLabels = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg border p-6 mb-6">
-      <h3 className="text-2xl font-semibold text-gray-800 mb-4">💳 Manage Your Spending</h3>
-      
+    <div>
       {/* Recurring Bills Section */}
-      <div className="mb-6">
+      <div className="mb-4">
         <button
           onClick={() => setShowScheduled(!showScheduled)}
-          className="w-full flex justify-between items-center p-4 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 rounded-lg font-medium text-gray-800 transition-all"
+          className="w-full glass-card-light rounded-lg p-3 flex items-center justify-between hover:bg-white hover:bg-opacity-10 transition-all"
         >
-          <span className="flex items-center">
-            <span className="text-2xl mr-3">🔄</span>
-            <span>Recurring Bills & Income ({scheduled.filter(s => s.pattern !== 'oneoff').length})</span>
-          </span>
-          <span>{showScheduled ? '▼' : '▶'}</span>
+          <div className="flex items-center gap-2">
+            <svg className="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span className="text-sm font-semibold text-white">Recurring ({scheduled.filter(i => i.pattern !== 'oneoff').length})</span>
+          </div>
+          <span className="text-white">{showScheduled ? '▼' : '▶'}</span>
         </button>
 
         {showScheduled && (
           <div className="mt-4 space-y-4">
             {/* Add New Recurring Item */}
-            <div className="p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-              <h4 className="font-semibold mb-3">Add Recurring Item</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="glass-card-light rounded-lg border border-dashed border-white/20 p-4">
+              <h4 className="text-sm font-semibold text-white mb-3">Add Recurring Item</h4>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-5">
                 <select
-                  className="p-2 border rounded-lg"
+                  className="metallic-input p-2 rounded-lg text-white focus:ring-2 focus:ring-cyan-400/40"
                   value={newScheduled.pattern}
                   onChange={(e) => setNewScheduled({ ...newScheduled, pattern: e.target.value })}
                 >
@@ -125,7 +118,7 @@ export default function SpendingManager({ scheduled, onScheduledChange, transact
 
                 {newScheduled.pattern === 'monthly' && (
                   <select
-                    className="p-2 border rounded-lg"
+                    className="metallic-input p-2 rounded-lg text-white focus:ring-2 focus:ring-cyan-400/40"
                     value={newScheduled.day}
                     onChange={(e) => setNewScheduled({ ...newScheduled, day: e.target.value })}
                   >
@@ -137,7 +130,7 @@ export default function SpendingManager({ scheduled, onScheduledChange, transact
 
                 {(newScheduled.pattern === 'weekly' || newScheduled.pattern === 'biweekly') && (
                   <select
-                    className="p-2 border rounded-lg"
+                    className="metallic-input p-2 rounded-lg text-white focus:ring-2 focus:ring-cyan-400/40"
                     value={newScheduled.weekday}
                     onChange={(e) => setNewScheduled({ ...newScheduled, weekday: e.target.value })}
                   >
@@ -150,7 +143,7 @@ export default function SpendingManager({ scheduled, onScheduledChange, transact
                 <input
                   type="number"
                   placeholder="Amount ($)"
-                  className="p-2 border rounded-lg"
+                  className="metallic-input p-2 rounded-lg text-white placeholder-white/40 focus:ring-2 focus:ring-cyan-400/40"
                   value={newScheduled.amount || ''}
                   onChange={(e) => setNewScheduled({ ...newScheduled, amount: e.target.value })}
                 />
@@ -158,14 +151,14 @@ export default function SpendingManager({ scheduled, onScheduledChange, transact
                 <input
                   type="text"
                   placeholder="Description"
-                  className="p-2 border rounded-lg"
+                  className="metallic-input p-2 rounded-lg text-white placeholder-white/40 focus:ring-2 focus:ring-cyan-400/40"
                   value={newScheduled.description}
                   onChange={(e) => setNewScheduled({ ...newScheduled, description: e.target.value })}
                 />
 
                 <button
                   onClick={addScheduledItem}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                  className="metallic-button px-4 py-2 rounded-lg text-xs font-semibold text-white"
                 >
                   + Add
                 </button>
@@ -179,22 +172,21 @@ export default function SpendingManager({ scheduled, onScheduledChange, transact
                 .map((item, index) => {
                   const originalIndex = scheduled.findIndex(s => s === item);
                   return (
-                    <div key={index} className="p-4 bg-white border-2 rounded-lg hover:shadow-md transition-shadow">
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
+                    <div key={index} className="glass-card-light rounded-lg border border-white/10 p-4 transition-all hover:shadow-lg">
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-6">
                         {/* Pattern Selector */}
                         <div>
-                          <div className="text-xs text-gray-500 mb-1">Pattern</div>
+                          <div className="mb-1 text-[11px] uppercase tracking-wide text-white/60">Pattern</div>
                           <select
-                            className="w-full p-2 border rounded-lg font-medium"
+                            className="w-full metallic-input p-2 rounded-lg font-medium text-white focus:ring-2 focus:ring-cyan-400/40"
                             value={item.pattern}
                             onChange={(e) => {
                               const updated = [...scheduled];
-                              updated[originalIndex] = { 
-                                ...updated[originalIndex], 
+                              updated[originalIndex] = {
+                                ...updated[originalIndex],
                                 pattern: e.target.value,
-                                // Set default day/weekday based on pattern
                                 ...(e.target.value === 'monthly' ? { day: 1 } : {}),
-                                ...(e.target.value === 'weekly' || e.target.value === 'biweekly' ? { weekday: 4 } : {})
+                                ...((e.target.value === 'weekly' || e.target.value === 'biweekly') ? { weekday: 4 } : {})
                               };
                               onScheduledChange(updated);
                             }}
@@ -207,14 +199,14 @@ export default function SpendingManager({ scheduled, onScheduledChange, transact
 
                         {/* Day/Weekday Selector */}
                         <div>
-                          <div className="text-xs text-gray-500 mb-1">
+                          <div className="mb-1 text-[11px] uppercase tracking-wide text-white/60">
                             {item.pattern === 'monthly' ? 'Day of Month' : 'Day of Week'}
                           </div>
                           {item.pattern === 'monthly' ? (
                             <select
-                              className="w-full p-2 border rounded-lg font-medium"
+                              className="w-full metallic-input p-2 rounded-lg font-medium text-white focus:ring-2 focus:ring-cyan-400/40"
                               value={item.day || 1}
-                              onChange={(e) => updateScheduledItem(originalIndex, 'day', parseInt(e.target.value))}
+                              onChange={(e) => updateScheduledItem(originalIndex, 'day', parseInt(e.target.value, 10))}
                             >
                               {Array.from({ length: 28 }, (_, i) => i + 1).map(d => (
                                 <option key={d} value={d}>{d}</option>
@@ -222,9 +214,9 @@ export default function SpendingManager({ scheduled, onScheduledChange, transact
                             </select>
                           ) : (
                             <select
-                              className="w-full p-2 border rounded-lg font-medium"
+                              className="w-full metallic-input p-2 rounded-lg font-medium text-white focus:ring-2 focus:ring-cyan-400/40"
                               value={item.weekday || 0}
-                              onChange={(e) => updateScheduledItem(originalIndex, 'weekday', parseInt(e.target.value))}
+                              onChange={(e) => updateScheduledItem(originalIndex, 'weekday', parseInt(e.target.value, 10))}
                             >
                               {weekdayLabels.map((day, idx) => (
                                 <option key={idx} value={idx}>{day}</option>
@@ -235,10 +227,10 @@ export default function SpendingManager({ scheduled, onScheduledChange, transact
 
                         {/* Description */}
                         <div className="lg:col-span-2">
-                          <div className="text-xs text-gray-500 mb-1">Description</div>
+                          <div className="mb-1 text-[11px] uppercase tracking-wide text-white/60">Description</div>
                           <input
                             type="text"
-                            className="w-full p-2 border rounded-lg"
+                            className="w-full metallic-input p-2 rounded-lg text-white placeholder-white/40 focus:ring-2 focus:ring-cyan-400/40"
                             value={item.description}
                             onChange={(e) => updateScheduledItem(originalIndex, 'description', e.target.value)}
                             placeholder="e.g., Rent, Paycheck, Netflix"
@@ -247,18 +239,18 @@ export default function SpendingManager({ scheduled, onScheduledChange, transact
 
                         {/* Amount */}
                         <div>
-                          <div className="text-xs text-gray-500 mb-1">Amount ($)</div>
+                          <div className="mb-1 text-[11px] uppercase tracking-wide text-white/60">Amount ($)</div>
                           <input
                             type="number"
                             step="0.01"
-                            className={`w-full p-2 border-2 rounded-lg font-semibold ${
-                              item.amount >= 0 ? 'text-green-600 border-green-300' : 'text-red-600 border-red-300'
+                            className={`metallic-input w-full rounded-lg p-2 font-semibold focus:ring-2 focus:ring-cyan-400/40 ${
+                              item.amount >= 0 ? 'border-green-400/50 text-green-200' : 'border-red-400/50 text-red-200'
                             }`}
                             value={item.amount}
                             onChange={(e) => updateScheduledItem(originalIndex, 'amount', e.target.value)}
                             placeholder="e.g., -1200 or 2400"
                           />
-                          <div className="text-xs text-gray-500 mt-1">
+                          <div className="mt-1 text-xs text-gray-300">
                             {item.amount >= 0 ? '💰 Income' : '💸 Expense'}
                           </div>
                         </div>
@@ -267,7 +259,7 @@ export default function SpendingManager({ scheduled, onScheduledChange, transact
                         <div className="flex items-end">
                           <button
                             onClick={() => deleteScheduledItem(originalIndex)}
-                            className="w-full px-3 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-sm font-medium transition-colors"
+                            className="w-full rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-200 transition-all hover:bg-red-500/20"
                           >
                             🗑️ Delete
                           </button>
@@ -275,21 +267,21 @@ export default function SpendingManager({ scheduled, onScheduledChange, transact
                       </div>
 
                       {/* Summary Info */}
-                      <div className="mt-2 pt-2 border-t text-xs text-gray-600">
-                        <span className="font-medium">
+                      <div className="mt-3 border-t border-white/10 pt-3 text-xs text-gray-300">
+                        <span className="font-medium text-white/80">
                           {item.pattern === 'monthly' && `Occurs on day ${item.day} of each month`}
                           {item.pattern === 'biweekly' && `Occurs every other ${weekdayLabels[item.weekday || 0]}`}
                           {item.pattern === 'weekly' && `Occurs every ${weekdayLabels[item.weekday || 0]}`}
                         </span>
                         {' • '}
-                        <span className={item.amount >= 0 ? 'text-green-600' : 'text-red-600'}>
+                        <span className={item.amount >= 0 ? 'text-green-300' : 'text-red-300'}>
                           ${Math.abs(item.amount).toFixed(2)}/{item.pattern === 'biweekly' ? '2wks' : item.pattern === 'weekly' ? 'wk' : 'mo'}
                         </span>
                         {item.pattern !== 'weekly' && (
                           <>
                             {' ≈ '}
-                            <span className="text-gray-700 font-medium">
-                              ${(Math.abs(item.amount) * (item.pattern === 'monthly' ? 1 : item.pattern === 'biweekly' ? 26/12 : 52/12)).toFixed(2)}/mo
+                            <span className="font-medium text-white/80">
+                              {(Math.abs(item.amount) * (item.pattern === 'monthly' ? 1 : item.pattern === 'biweekly' ? 26/12 : 52/12)).toFixed(2)}/mo
                             </span>
                           </>
                         )}
@@ -303,27 +295,29 @@ export default function SpendingManager({ scheduled, onScheduledChange, transact
       </div>
 
       {/* One-Time Transactions Section */}
-      <div>
+      <div className="mb-4">
         <button
           onClick={() => setShowOneTime(!showOneTime)}
-          className="w-full flex justify-between items-center p-4 bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 rounded-lg font-medium text-gray-800 transition-all"
+          className="w-full glass-card-light rounded-lg p-3 flex items-center justify-between hover:bg-white hover:bg-opacity-10 transition-all"
         >
-          <span className="flex items-center">
-            <span className="text-2xl mr-3">📅</span>
-            <span>One-Time What-If Scenarios ({scheduled.filter(s => s.pattern === 'oneoff').length})</span>
-          </span>
-          <span>{showOneTime ? '▼' : '▶'}</span>
+          <div className="flex items-center gap-2">
+            <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <span className="text-sm font-semibold text-white">One-Time ({scheduled.filter(i => i.pattern === 'oneoff').length})</span>
+          </div>
+          <span className="text-white">{showOneTime ? '▼' : '▶'}</span>
         </button>
 
         {showOneTime && (
           <div className="mt-4 space-y-4">
             {/* Add One-Time Transaction */}
-            <div className="p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-              <h4 className="font-semibold mb-3">Add What-If Scenario</h4>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="glass-card-light rounded-lg border border-dashed border-white/20 p-4">
+              <h4 className="text-sm font-semibold text-white mb-3">Add What-If Scenario</h4>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                 <input
                   type="date"
-                  className="p-2 border rounded-lg"
+                  className="metallic-input p-2 rounded-lg text-white focus:ring-2 focus:ring-cyan-400/40"
                   value={newOneTime.date}
                   onChange={(e) => setNewOneTime({ ...newOneTime, date: e.target.value })}
                 />
@@ -331,7 +325,7 @@ export default function SpendingManager({ scheduled, onScheduledChange, transact
                 <input
                   type="number"
                   placeholder="Amount ($)"
-                  className="p-2 border rounded-lg"
+                  className="metallic-input p-2 rounded-lg text-white placeholder-white/40 focus:ring-2 focus:ring-cyan-400/40"
                   value={newOneTime.amount || ''}
                   onChange={(e) => setNewOneTime({ ...newOneTime, amount: e.target.value })}
                 />
@@ -339,19 +333,19 @@ export default function SpendingManager({ scheduled, onScheduledChange, transact
                 <input
                   type="text"
                   placeholder="Description"
-                  className="p-2 border rounded-lg"
+                  className="metallic-input p-2 rounded-lg text-white placeholder-white/40 focus:ring-2 focus:ring-cyan-400/40"
                   value={newOneTime.description}
                   onChange={(e) => setNewOneTime({ ...newOneTime, description: e.target.value })}
                 />
 
                 <button
                   onClick={addOneTimeTransaction}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+                  className="metallic-button px-4 py-2 rounded-lg text-xs font-semibold text-white"
                 >
                   + Add Scenario
                 </button>
               </div>
-              <p className="text-xs text-gray-600 mt-2">
+              <p className="mt-2 text-xs text-gray-300">
                 💡 Use positive amounts for income/deposits, negative for expenses
               </p>
             </div>
@@ -363,14 +357,14 @@ export default function SpendingManager({ scheduled, onScheduledChange, transact
                 .map((item, index) => {
                   const originalIndex = scheduled.findIndex(s => s === item);
                   return (
-                    <div key={index} className="p-4 bg-white border-2 rounded-lg hover:shadow-md transition-shadow">
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div key={index} className="glass-card-light rounded-lg border border-white/10 p-4 transition-all hover:shadow-lg">
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
                         {/* Date */}
                         <div>
-                          <div className="text-xs text-gray-500 mb-1">Date</div>
+                          <div className="mb-1 text-[11px] uppercase tracking-wide text-white/60">Date</div>
                           <input
                             type="date"
-                            className="w-full p-2 border rounded-lg font-medium"
+                            className="w-full metallic-input p-2 rounded-lg font-medium text-white focus:ring-2 focus:ring-cyan-400/40"
                             value={item.date}
                             onChange={(e) => updateScheduledItem(originalIndex, 'date', e.target.value)}
                           />
@@ -378,10 +372,10 @@ export default function SpendingManager({ scheduled, onScheduledChange, transact
 
                         {/* Description */}
                         <div>
-                          <div className="text-xs text-gray-500 mb-1">Description</div>
+                          <div className="mb-1 text-[11px] uppercase tracking-wide text-white/60">Description</div>
                           <input
                             type="text"
-                            className="w-full p-2 border rounded-lg"
+                            className="w-full metallic-input p-2 rounded-lg text-white placeholder-white/40 focus:ring-2 focus:ring-cyan-400/40"
                             value={item.description}
                             onChange={(e) => updateScheduledItem(originalIndex, 'description', e.target.value)}
                             placeholder="e.g., Car repair, Bonus"
@@ -390,18 +384,18 @@ export default function SpendingManager({ scheduled, onScheduledChange, transact
 
                         {/* Amount */}
                         <div>
-                          <div className="text-xs text-gray-500 mb-1">Amount ($)</div>
+                          <div className="mb-1 text-[11px] uppercase tracking-wide text-white/60">Amount ($)</div>
                           <input
                             type="number"
                             step="0.01"
-                            className={`w-full p-2 border-2 rounded-lg font-semibold ${
-                              item.amount >= 0 ? 'text-green-600 border-green-300' : 'text-red-600 border-red-300'
+                            className={`metallic-input w-full rounded-lg p-2 font-semibold focus:ring-2 focus:ring-cyan-400/40 ${
+                              item.amount >= 0 ? 'border-green-400/50 text-green-200' : 'border-red-400/50 text-red-200'
                             }`}
                             value={item.amount}
                             onChange={(e) => updateScheduledItem(originalIndex, 'amount', e.target.value)}
                             placeholder="e.g., -500 or 1000"
                           />
-                          <div className="text-xs text-gray-500 mt-1">
+                          <div className="mt-1 text-xs text-gray-300">
                             {item.amount >= 0 ? '💰 Income' : '💸 Expense'}
                           </div>
                         </div>
@@ -410,7 +404,7 @@ export default function SpendingManager({ scheduled, onScheduledChange, transact
                         <div className="flex items-end">
                           <button
                             onClick={() => deleteScheduledItem(originalIndex)}
-                            className="w-full px-3 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-sm font-medium transition-colors"
+                            className="w-full rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-200 transition-all hover:bg-red-500/20"
                           >
                             🗑️ Delete
                           </button>
@@ -418,10 +412,12 @@ export default function SpendingManager({ scheduled, onScheduledChange, transact
                       </div>
 
                       {/* Summary Info */}
-                      <div className="mt-2 pt-2 border-t text-xs text-gray-600">
-                        <span className="font-medium">Scheduled for {new Date(item.date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                      <div className="mt-3 border-t border-white/10 pt-3 text-xs text-gray-300">
+                        <span className="font-medium text-white/80">
+                          Scheduled for {new Date(item.date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                        </span>
                         {' • '}
-                        <span className={item.amount >= 0 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
+                        <span className={item.amount >= 0 ? 'text-green-300 font-medium' : 'text-red-300 font-medium'}>
                           ${Math.abs(item.amount).toFixed(2)} {item.amount >= 0 ? 'income' : 'expense'}
                         </span>
                       </div>
@@ -434,12 +430,12 @@ export default function SpendingManager({ scheduled, onScheduledChange, transact
       </div>
 
       {/* Quick Presets */}
-      <div className="mt-6 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border">
-        <h4 className="font-semibold mb-3 text-gray-800 flex items-center">
-          <span className="text-2xl mr-2">💡</span>
-          Quick What-If Scenarios
-        </h4>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+      <div className="glass-card-light rounded-lg p-3">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-base">💡</span>
+          <h4 className="text-xs font-semibold text-white">Quick Scenarios</h4>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
           <button
             onClick={() => {
               const date = new Date();
@@ -451,9 +447,9 @@ export default function SpendingManager({ scheduled, onScheduledChange, transact
                 description: 'Emergency expense'
               }]);
             }}
-            className="p-3 bg-white hover:bg-red-50 rounded-lg text-sm border-2 border-transparent hover:border-red-200 transition-all font-medium"
+            className="metallic-input p-2 rounded text-xs text-white hover:bg-opacity-20 transition-all"
           >
-            🚨 -$500 Emergency
+            🚨 -$500<br/>Emergency
           </button>
           <button
             onClick={() => {
@@ -466,9 +462,9 @@ export default function SpendingManager({ scheduled, onScheduledChange, transact
                 description: 'Bonus payment'
               }]);
             }}
-            className="p-3 bg-white hover:bg-green-50 rounded-lg text-sm border-2 border-transparent hover:border-green-200 transition-all font-medium"
+            className="metallic-input p-2 rounded text-xs text-white hover:bg-opacity-20 transition-all"
           >
-            💰 +$1000 Bonus
+            🔥 +$1000<br/>Bonus
           </button>
           <button
             onClick={() => {
@@ -481,9 +477,9 @@ export default function SpendingManager({ scheduled, onScheduledChange, transact
                 description: 'Car repair'
               }]);
             }}
-            className="p-3 bg-white hover:bg-orange-50 rounded-lg text-sm border-2 border-transparent hover:border-orange-200 transition-all font-medium"
+            className="metallic-input p-2 rounded text-xs text-white hover:bg-opacity-20 transition-all"
           >
-            🔧 -$200 Car Repair
+            🚗 -$200<br/>Car Repair
           </button>
           <button
             onClick={() => {
@@ -494,13 +490,13 @@ export default function SpendingManager({ scheduled, onScheduledChange, transact
                 description: 'New subscription'
               }]);
             }}
-            className="p-3 bg-white hover:bg-blue-50 rounded-lg text-sm border-2 border-transparent hover:border-blue-200 transition-all font-medium"
+            className="metallic-input p-2 rounded text-xs text-white hover:bg-opacity-20 transition-all"
           >
-            📱 -$50/mo Subscription
+            📱 -$50/mo<br/>Subscription
           </button>
         </div>
-        <div className="text-xs text-gray-600 bg-white bg-opacity-50 p-2 rounded">
-          💡 <strong>Tip:</strong> All added items are fully editable. Click any field to modify the amount, date, or description!
+        <div className="mt-2 text-xs leading-snug text-gray-300">
+          <span className="text-cyan-400">💡 Tip:</span> All added items are fully editable. Click any field to modify!
         </div>
       </div>
     </div>

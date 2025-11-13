@@ -93,8 +93,50 @@ export default function ForecastTimelineRecharts({
       setData(rowsWithConfidence);
       setSummary(j.summary);
       setTransactions(j.transactions || []);
-  setCalendar(j.calendar || []);
-  setHabits(j.habits || []);
+
+      const rawCalendar = j.calendar || [];
+      const calendarByDate = new Map(
+        rawCalendar.map(entry => [String(entry.date).slice(0, 10), entry])
+      );
+
+      const fullCalendar = rowsWithConfidence.map(day => {
+        const entry = calendarByDate.get(day.date) || {};
+        const income = Number(entry.income || 0);
+        const expenses = Number(entry.expenses || 0);
+        const net = entry.net !== undefined && entry.net !== null
+          ? Number(entry.net)
+          : income + expenses;
+
+        return {
+          date: day.date,
+          income,
+          expenses,
+          net,
+          balance: Number(day.balance || 0),
+          top_expenses: entry.top_expenses || [],
+          details: entry.details || entry.items || []
+        };
+      });
+
+      rawCalendar.forEach(entry => {
+        const dateKey = String(entry.date).slice(0, 10);
+        if (!fullCalendar.some(day => day.date === dateKey)) {
+          fullCalendar.push({
+            date: dateKey,
+            income: Number(entry.income || 0),
+            expenses: Number(entry.expenses || 0),
+            net: entry.net !== undefined && entry.net !== null
+              ? Number(entry.net)
+              : Number(entry.income || 0) + Number(entry.expenses || 0),
+            balance: Number(entry.balance || 0),
+            top_expenses: entry.top_expenses || [],
+            details: entry.details || entry.items || []
+          });
+        }
+      });
+
+      setCalendar(fullCalendar);
+      setHabits(j.habits || []);
       
       // Notify parent component
       if (onForecastUpdate) {
@@ -125,47 +167,35 @@ export default function ForecastTimelineRecharts({
   const minBalance = data.length > 0 ? Math.min(...data.map(d => d.balance)) : 0;
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg border p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-2xl font-semibold text-gray-800">📈 Projected Balance</h3>
-        <div className="text-sm text-gray-500">
-          {loading && "🔄 Loading…"}
-          {error && <span className="text-red-600">⚠️ {error}</span>}
-        </div>
-      </div>
-
-      {/* Controls */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <div>
-          <label className="block text-sm font-medium mb-2">Forecast Method</label>
-          <div className="w-full p-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600">
-            Prophet (AI)
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-neon-cyan to-cyber-blue flex items-center justify-center">
+            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-2xl font-bold text-white">Balance Projection</h3>
+            <p className="text-cyan-300 text-sm">AI-powered forecast analysis</p>
           </div>
         </div>
-
-        <div className="flex items-end">
-          <label className="flex items-center gap-2 p-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={showConfidenceBands}
-              onChange={(e) => setShowConfidenceBands(e.target.checked)}
-              className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-            />
-            <span className="text-sm font-medium">Show Confidence Bands</span>
-          </label>
+        <div className="text-sm text-cyan-400">
+          {loading && "⟳ Calculating..."}
+          {error && <span className="text-red-400">⚠ {error}</span>}
         </div>
       </div>
 
       {/* Warning banner */}
       {lowBalanceWarning && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+        <div className="mb-6 glass-card-light rounded-xl p-4 border-l-4 border-red-500">
           <div className="flex items-center">
-            <span className="text-2xl mr-2">⚠️</span>
+            <span className="text-2xl mr-3">⚠️</span>
             <div>
-              <div className="font-semibold text-red-800">Low Balance Warning</div>
-              <div className="text-sm text-red-600">
-                Your balance may go negative around {lowBalanceWarning.date}. 
-                Minimum projected balance: ${minBalance.toFixed(2)}
+              <div className="font-semibold text-red-400">Low Balance Alert</div>
+              <div className="text-sm text-red-300">
+                Balance may go negative around {lowBalanceWarning.date}. 
+                Minimum: <span className="font-bold">${minBalance.toFixed(2)}</span>
               </div>
             </div>
           </div>
@@ -173,225 +203,243 @@ export default function ForecastTimelineRecharts({
       )}
 
       {/* Chart */}
-      <div style={{ width: "100%", height: 360 }} className="mb-4">
-        <ResponsiveContainer>
-          <ComposedChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis
-              dataKey="date"
-              tickFormatter={(d) => (d ? d.slice(5) : "")}
-              tick={{ fontSize: 11, fill: '#6b7280' }}
-            />
-            <YAxis 
-              tick={{ fontSize: 11, fill: '#6b7280' }}
-              tickFormatter={(val) => `$${val}`}
-            />
-            <Tooltip
-              formatter={(val, name) => {
-                if (name === "balance") return [`$${Number(val).toFixed(2)}`, "Expected Balance"];
-                if (name === "balanceUpper") return [`$${Number(val).toFixed(2)}`, "Best Case"];
-                if (name === "balanceLower") return [`$${Number(val).toFixed(2)}`, "Worst Case"];
-                return val;
-              }}
-              contentStyle={{ 
-                backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                border: '1px solid #e5e7eb',
-                borderRadius: '8px'
-              }}
-            />
-            {/* Zero reference to spot overdrafts */}
-            <ReferenceLine y={0} stroke="#ef4444" strokeDasharray="4 4" strokeWidth={2} label="Zero" />
-            
-            {/* Confidence bands */}
-            {showConfidenceBands && (
-              <Area
-                type="monotone"
-                dataKey="balanceUpper"
-                stroke="none"
-                fill="#3b82f6"
-                fillOpacity={0.1}
+      <div className="glass-card-light rounded-xl p-4 mb-6">
+        <div style={{ width: "100%", height: 400 }}>
+          <ResponsiveContainer>
+            <ComposedChart data={data}>
+              <defs>
+                <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.8}/>
+                  <stop offset="95%" stopColor="#a855f7" stopOpacity={0.3}/>
+                </linearGradient>
+                <linearGradient id="colorArea" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.2}/>
+                  <stop offset="95%" stopColor="#a855f7" stopOpacity={0.05}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+              <XAxis
+                dataKey="date"
+                tickFormatter={(d) => (d ? d.slice(5) : "")}
+                tick={{ fontSize: 11, fill: '#94a3b8' }}
+                stroke="rgba(255,255,255,0.2)"
               />
-            )}
-            {showConfidenceBands && (
-              <Area
-                type="monotone"
-                dataKey="balanceLower"
-                stroke="none"
-                fill="#3b82f6"
-                fillOpacity={0.1}
+              <YAxis 
+                tick={{ fontSize: 11, fill: '#94a3b8' }}
+                tickFormatter={(val) => `$${val}`}
+                stroke="rgba(255,255,255,0.2)"
               />
-            )}
-            
-            {/* Main balance line */}
-            <Line
-              type="monotone"
-              dataKey="balance"
-              dot={false}
-              stroke="#3b82f6"
-              strokeWidth={3}
-            />
-            
-            {/* Confidence band borders */}
-            {showConfidenceBands && (
-              <>
-                <Line
+              <Tooltip
+                formatter={(val, name) => {
+                  if (name === "balance") return [`$${Number(val).toFixed(2)}`, "Expected Balance"];
+                  if (name === "balanceUpper") return [`$${Number(val).toFixed(2)}`, "Best Case"];
+                  if (name === "balanceLower") return [`$${Number(val).toFixed(2)}`, "Worst Case"];
+                  return val;
+                }}
+                contentStyle={{ 
+                  backgroundColor: 'rgba(15, 15, 30, 0.95)',
+                  border: '1px solid rgba(6, 182, 212, 0.3)',
+                  borderRadius: '12px',
+                  backdropFilter: 'blur(10px)',
+                  color: '#fff'
+                }}
+                labelStyle={{ color: '#06b6d4' }}
+              />
+              {/* Zero reference */}
+              <ReferenceLine y={0} stroke="#ef4444" strokeDasharray="4 4" strokeWidth={2} />
+              
+              {/* Confidence bands */}
+              {showConfidenceBands && (
+                <Area
                   type="monotone"
                   dataKey="balanceUpper"
-                  dot={false}
-                  stroke="#93c5fd"
-                  strokeWidth={1}
-                  strokeDasharray="3 3"
+                  stroke="none"
+                  fill="url(#colorArea)"
                 />
-                <Line
+              )}
+              {showConfidenceBands && (
+                <Area
                   type="monotone"
                   dataKey="balanceLower"
-                  dot={false}
-                  stroke="#93c5fd"
-                  strokeWidth={1}
-                  strokeDasharray="3 3"
+                  stroke="none"
+                  fill="url(#colorArea)"
                 />
-              </>
-            )}
-          </ComposedChart>
-        </ResponsiveContainer>
-      </div>
-      
-      {/* Confidence Band Legend */}
-      {showConfidenceBands && (
-        <div className="mb-4 p-3 bg-blue-50 rounded-lg text-sm">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-0.5 bg-blue-600"></div>
-              <span className="font-medium">Expected Balance</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-0.5 border border-dashed border-blue-300"></div>
-              <span className="text-gray-600">Confidence Range (±10%)</span>
-            </div>
-          </div>
-          <p className="mt-2 text-xs text-gray-600">
-            💡 The shaded area shows the likely range of your balance based on spending variability
-          </p>
+              )}
+              
+              {/* Main balance line with gradient */}
+              <Line
+                type="monotone"
+                dataKey="balance"
+                dot={false}
+                stroke="url(#colorBalance)"
+                strokeWidth={4}
+                filter="url(#glow)"
+              />
+              
+              {/* Confidence band borders */}
+              {showConfidenceBands && (
+                <>
+                  <Line
+                    type="monotone"
+                    dataKey="balanceUpper"
+                    dot={false}
+                    stroke="rgba(6, 182, 212, 0.4)"
+                    strokeWidth={1}
+                    strokeDasharray="3 3"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="balanceLower"
+                    dot={false}
+                    stroke="rgba(6, 182, 212, 0.4)"
+                    strokeWidth={1}
+                    strokeDasharray="3 3"
+                  />
+                </>
+              )}
+            </ComposedChart>
+          </ResponsiveContainer>
         </div>
-      )}
 
-      {/* Summary stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t">
-        <div>
-          <div className="text-xs font-medium text-gray-500 uppercase">Starting</div>
+        {/* Controls */}
+        <div className="flex items-center justify-between mt-4 pt-4 border-t border-white border-opacity-10">
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="confidenceBands"
+              checked={showConfidenceBands}
+              onChange={(e) => setShowConfidenceBands(e.target.checked)}
+              className="w-4 h-4 rounded"
+            />
+            <label htmlFor="confidenceBands" className="text-sm text-cyan-300 cursor-pointer">
+              Show Confidence Bands
+            </label>
+          </div>
+          <div className="text-xs text-cyan-400">
+            Method: <span className="font-bold text-neon-cyan">Prophet AI</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Summary Stats Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="glass-card-light rounded-xl p-4">
+          <div className="text-xs font-medium text-cyan-400 uppercase tracking-wider mb-2">Starting</div>
           {data[0] && (
-            <div className="mt-1">
-              <div className="text-xs text-gray-600">{data[0].date}</div>
-              <div className="text-lg font-semibold">${data[0].balance.toFixed(2)}</div>
-            </div>
+            <>
+              <div className="text-xs text-cyan-300 mb-1">{data[0].date}</div>
+              <div className="text-2xl font-bold text-white">${data[0].balance.toFixed(2)}</div>
+            </>
           )}
         </div>
-        <div>
-          <div className="text-xs font-medium text-gray-500 uppercase">Ending</div>
+        <div className="glass-card-light rounded-xl p-4">
+          <div className="text-xs font-medium text-purple-400 uppercase tracking-wider mb-2">Ending</div>
           {data.length > 0 && (
-            <div className="mt-1">
-              <div className="text-xs text-gray-600">{data[data.length - 1].date}</div>
-              <div className="text-lg font-semibold">${data[data.length - 1].balance.toFixed(2)}</div>
-            </div>
+            <>
+              <div className="text-xs text-purple-300 mb-1">{data[data.length - 1].date}</div>
+              <div className="text-2xl font-bold text-white">${data[data.length - 1].balance.toFixed(2)}</div>
+            </>
           )}
         </div>
-        <div>
-          <div className="text-xs font-medium text-gray-500 uppercase">Minimum</div>
-          <div className="mt-1">
-            <div className={`text-lg font-semibold ${minBalance < 0 ? 'text-red-600' : 'text-green-600'}`}>
-              ${minBalance.toFixed(2)}
-            </div>
+        <div className="glass-card-light rounded-xl p-4">
+          <div className="text-xs font-medium text-pink-400 uppercase tracking-wider mb-2">Minimum</div>
+          <div className={`text-2xl font-bold ${minBalance < 0 ? 'text-red-400' : 'text-green-400'}`}>
+            ${minBalance.toFixed(2)}
           </div>
         </div>
-        <div>
-          <div className="text-xs font-medium text-gray-500 uppercase">Method</div>
-          <div className="mt-1">
-            <div className="text-lg font-semibold capitalize">{summary?.method || method}</div>
-          </div>
+        <div className="glass-card-light rounded-xl p-4">
+          <div className="text-xs font-medium text-cyan-400 uppercase tracking-wider mb-2">Net Change</div>
+          {data.length > 0 && (
+            <div className={`text-2xl font-bold ${(data[data.length - 1].balance - data[0].balance) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              ${(data[data.length - 1].balance - data[0].balance).toFixed(2)}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Income vs Expenses Summary */}
+      {/* Income vs Expenses */}
       {summary && (
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
-          <div>
-            <div className="text-sm font-medium text-gray-600">Total Income (Forecast Period)</div>
-            <div className="text-2xl font-bold text-green-600">
-              ${Math.abs(summary.total_income || 0).toFixed(2)}
+        <div className="glass-card-light rounded-xl p-6 mb-6">
+          <h4 className="text-lg font-bold text-white mb-4">Financial Overview</h4>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <div className="text-sm text-green-400 mb-2">Total Income</div>
+              <div className="text-3xl font-bold text-green-400">
+                ${Math.abs(summary.total_income || 0).toFixed(2)}
+              </div>
             </div>
-          </div>
-          <div>
-            <div className="text-sm font-medium text-gray-600">Total Expenses (Forecast Period)</div>
-            <div className="text-2xl font-bold text-red-600">
-              ${Math.abs(summary.total_expenses || 0).toFixed(2)}
+            <div>
+              <div className="text-sm text-red-400 mb-2">Total Expenses</div>
+              <div className="text-3xl font-bold text-red-400">
+                ${Math.abs(summary.total_expenses || 0).toFixed(2)}
+              </div>
             </div>
-          </div>
-          <div>
-            <div className="text-sm font-medium text-gray-600">Net Change</div>
-            <div className={`text-2xl font-bold ${(summary.total_income + summary.total_expenses) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              ${(summary.total_income + summary.total_expenses).toFixed(2)}
+            <div>
+              <div className="text-sm text-cyan-400 mb-2">Net Flow</div>
+              <div className={`text-3xl font-bold ${(summary.total_income + summary.total_expenses) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                ${(summary.total_income + summary.total_expenses).toFixed(2)}
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Category Breakdown */}
-      {summary?.category_breakdown && (
-        <div className="mt-6">
-          <div className="flex justify-between items-center mb-3">
-            <h4 className="font-semibold text-lg">Spending by Category (Forecast Period)</h4>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {Object.entries(summary.category_breakdown)
-              .filter(([cat, amt]) => amt < 0) // Only show expenses
-              .sort(([, a], [, b]) => a - b) // Sort by amount
-              .map(([category, amount]) => (
-                <div key={category} className="p-3 bg-gray-50 rounded-lg border">
-                  <div className="text-xs text-gray-600 capitalize mb-1">
-                    {category.replace('_', ' ')}
-                  </div>
-                  <div className="text-lg font-semibold text-red-600">
-                    ${Math.abs(amount).toFixed(2)}
-                  </div>
-                </div>
-              ))}
-          </div>
-        </div>
-      )}
-
+      {/* Calendar View */}
       {calendar.length > 0 && (
-        <div className="mt-6">
-          <div className="flex justify-between items-center mb-2">
-            <h4 className="font-semibold text-lg">30-Day Cash Flow Calendar</h4>
-            <span className="text-xs text-gray-500">Projected inflows, fees, and high-impact spending</span>
+        <div className="glass-card-light rounded-xl p-6 mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyber-purple to-cyber-pink flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <div>
+              <h4 className="text-lg font-bold text-white">Cash Flow Calendar</h4>
+              <p className="text-xs text-purple-300">Daily balance projection with income and expenses</p>
+            </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {calendar.slice(0, 15).map(day => {
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[600px] overflow-y-auto pr-2">
+            {calendar
+              .slice()
+              .sort((a, b) => new Date(a.date) - new Date(b.date))
+              .map(day => {
               const dateObj = new Date(day.date);
               const formatted = dateObj.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-              const netClass = day.net >= 0 ? 'text-green-600' : 'text-red-600';
+              const netClass = day.net >= 0 ? 'text-green-400' : 'text-red-400';
               const income = Number(day.income || 0);
               const expenses = Number(day.expenses || 0);
               return (
-                <div key={day.date} className="p-4 bg-gray-50 border border-gray-200 rounded-lg shadow-sm">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-semibold text-gray-700">{formatted}</span>
+                <div key={day.date} className="glass-card rounded-lg p-4 border border-white border-opacity-10 hover:border-opacity-20 transition-all">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-bold text-white">{formatted}</span>
                     <span className={`text-sm font-bold ${netClass}`}>
                       {day.net >= 0 ? '+' : ''}${Math.abs(day.net).toFixed(2)}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-xs text-gray-600 mb-2">
-                    <span>Income: <span className="font-semibold text-green-600">${Math.abs(income).toFixed(2)}</span></span>
-                    <span>Spend: <span className="font-semibold text-red-600">${Math.abs(expenses).toFixed(2)}</span></span>
+                  <div className="flex items-center justify-between text-xs mb-3">
+                    <span className="text-green-400">↑ ${Math.abs(income).toFixed(2)}</span>
+                    <span className="text-red-400">↓ ${Math.abs(expenses).toFixed(2)}</span>
                   </div>
+                  <div className="mb-3 rounded-lg bg-white/5 p-2 text-[11px] text-cyan-200">
+                    Projected Balance: <span className="font-semibold text-white">${Number(day.balance || 0).toFixed(2)}</span>
+                  </div>
+                  {income === 0 && expenses === 0 && (!day.top_expenses || day.top_expenses.length === 0) && (
+                    <div className="text-[11px] text-gray-400 italic">
+                      No scheduled activity
+                    </div>
+                  )}
                   {day.top_expenses && day.top_expenses.length > 0 && (
-                    <div className="text-xs text-gray-600">
-                      <div className="font-semibold text-gray-700 mb-1">Watchlist</div>
+                    <div className="text-xs border-t border-white border-opacity-10 pt-2">
+                      <div className="font-semibold text-cyan-300 mb-2">Key Items</div>
                       <ul className="space-y-1">
                         {day.top_expenses.map((expense, idx) => (
-                          <li key={`${day.date}-${idx}`} className="flex justify-between">
-                            <span className="capitalize truncate pr-2">{expense?.description || expense?.category || 'Expense'}</span>
-                            <span className="font-semibold text-red-600">${Math.abs(expense?.amount || 0).toFixed(2)}</span>
+                          <li key={`${day.date}-${idx}`} className="flex justify-between items-center">
+                            <span className="text-gray-400 truncate pr-2 capitalize text-xs">
+                              {(expense?.description || expense?.category || 'Expense').slice(0, 15)}
+                            </span>
+                            <span className="font-semibold text-red-400 text-xs">
+                              ${Math.abs(expense?.amount || 0).toFixed(0)}
+                            </span>
                           </li>
                         ))}
                       </ul>
@@ -401,43 +449,41 @@ export default function ForecastTimelineRecharts({
               );
             })}
           </div>
-          {calendar.length > 15 && (
-            <p className="mt-2 text-xs text-gray-500">Showing the first 15 forecasted days. Export the forecast to see the full calendar.</p>
-          )}
+          <p className="mt-3 text-xs text-cyan-400 text-center">
+            Scroll to explore the full forecast horizon
+          </p>
         </div>
       )}
 
+      {/* Habits */}
       {habits.length > 0 && (
-        <div className="mt-6">
-          <h4 className="font-semibold text-lg mb-3">Spending & Income Habits</h4>
+        <div className="glass-card-light rounded-xl p-6 mb-6">
+          <h4 className="text-lg font-bold text-white mb-4">Spending Patterns</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {habits.map((habit, idx) => {
-              const badgeClass = habit.source === 'recurring' ? 'bg-purple-100 text-purple-700' : 'bg-amber-100 text-amber-800';
-              const amountClass = habit.type === 'income' ? 'text-green-600' : 'text-red-600';
+              const badgeClass = habit.source === 'recurring' 
+                ? 'bg-purple-500 bg-opacity-20 text-purple-300 border border-purple-500 border-opacity-30' 
+                : 'bg-amber-500 bg-opacity-20 text-amber-300 border border-amber-500 border-opacity-30';
+              const amountClass = habit.type === 'income' ? 'text-green-400' : 'text-red-400';
               return (
-                <div key={`${habit.label}-${idx}`} className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
-                  <div className="flex items-start justify-between">
+                <div key={`${habit.label}-${idx}`} className="glass-card rounded-lg p-4 border border-white border-opacity-10">
+                  <div className="flex items-start justify-between mb-2">
                     <div>
-                      <div className="text-sm font-semibold text-gray-800">{habit.label}</div>
-                      <div className="text-xs text-gray-500 capitalize">{habit.category?.replace('_', ' ')}</div>
+                      <div className="text-sm font-semibold text-white">{habit.label}</div>
+                      <div className="text-xs text-cyan-300 capitalize">{habit.category?.replace('_', ' ')}</div>
                     </div>
                     <span className={`text-xs font-medium px-2 py-1 rounded-full ${badgeClass}`}>
                       {habit.source === 'recurring' ? 'Recurring' : 'Pattern'}
                     </span>
                   </div>
-                  <div className="mt-2 text-sm text-gray-700">{habit.detail}</div>
-                  <div className="mt-2 text-sm">
-                    <span className={`font-semibold ${amountClass}`}>${Number(habit.average_amount || 0).toFixed(2)}</span>
-                    <span className="text-gray-500"> average per event</span>
+                  <div className="text-sm text-gray-400 mb-2">{habit.detail}</div>
+                  <div className="text-sm">
+                    <span className={`font-bold ${amountClass}`}>${Number(habit.average_amount || 0).toFixed(2)}</span>
+                    <span className="text-gray-400"> avg per event</span>
                   </div>
-                  {habit.average_weekly_spend && (
-                    <div className="text-xs text-gray-500 mt-1">
-                      Weekly impact: ${Number(habit.average_weekly_spend).toFixed(2)}
-                    </div>
-                  )}
                   {habit.next_date && (
-                    <div className="text-xs text-gray-500 mt-1">
-                      Next up: {new Date(habit.next_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    <div className="text-xs text-purple-300 mt-2">
+                      Next: {new Date(habit.next_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                     </div>
                   )}
                 </div>
@@ -448,50 +494,40 @@ export default function ForecastTimelineRecharts({
       )}
 
       {/* Transaction Details Toggle */}
-      <div className="mt-6">
+      <div className="glass-card-light rounded-xl p-4">
         <button
           onClick={() => setShowTransactions(!showTransactions)}
-          className="w-full p-3 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium text-gray-700 transition-colors"
+          className="metallic-button w-full p-3 rounded-lg font-medium text-white transition-all"
         >
           {showTransactions ? '▼' : '▶'} {showTransactions ? 'Hide' : 'Show'} Transaction Details ({transactions.length})
         </button>
         
         {showTransactions && transactions.length > 0 && (
-          <div className="mt-4 max-h-96 overflow-y-auto border rounded-lg">
+          <div className="mt-4 max-h-96 overflow-y-auto rounded-lg border border-white border-opacity-10">
             <table className="w-full text-sm">
-              <thead className="bg-gray-100 sticky top-0">
+              <thead className="glass-card sticky top-0">
                 <tr>
-                  <th className="p-2 text-left">Date</th>
-                  <th className="p-2 text-left">Description</th>
-                  <th className="p-2 text-left">Category</th>
-                  <th className="p-2 text-left">Type</th>
-                  <th className="p-2 text-right">Amount</th>
-                  <th className="p-2 text-right">Balance</th>
+                  <th className="p-3 text-left text-cyan-400 font-semibold">Date</th>
+                  <th className="p-3 text-left text-cyan-400 font-semibold">Description</th>
+                  <th className="p-3 text-left text-cyan-400 font-semibold">Category</th>
+                  <th className="p-3 text-right text-cyan-400 font-semibold">Amount</th>
+                  <th className="p-3 text-right text-cyan-400 font-semibold">Balance</th>
                 </tr>
               </thead>
               <tbody>
                 {transactions.map((tx, idx) => (
-                  <tr key={idx} className="border-t hover:bg-gray-50">
-                    <td className="p-2">{tx.date?.slice(0, 10)}</td>
-                    <td className="p-2 text-gray-700">{tx.description}</td>
-                    <td className="p-2 capitalize text-xs">
-                      <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                  <tr key={idx} className="border-t border-white border-opacity-5 hover:bg-white hover:bg-opacity-5">
+                    <td className="p-3 text-gray-400">{tx.date?.slice(0, 10)}</td>
+                    <td className="p-3 text-white">{tx.description}</td>
+                    <td className="p-3">
+                      <span className="px-2 py-1 bg-cyber-blue bg-opacity-20 text-cyan-300 rounded text-xs">
                         {tx.category?.replace('_', ' ')}
                       </span>
                     </td>
-                    <td className="p-2 capitalize text-xs">
-                      <span className={`px-2 py-1 rounded ${
-                        tx.type === 'historical' ? 'bg-gray-200 text-gray-700' :
-                        tx.type === 'scheduled' ? 'bg-purple-100 text-purple-800' :
-                        'bg-green-100 text-green-800'
-                      }`}>
-                        {tx.type}
-                      </span>
-                    </td>
-                    <td className={`p-2 text-right font-medium ${tx.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    <td className={`p-3 text-right font-medium ${tx.amount >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                       ${tx.amount?.toFixed(2)}
                     </td>
-                    <td className="p-2 text-right font-medium">
+                    <td className="p-3 text-right font-medium text-white">
                       ${tx.balance?.toFixed(2)}
                     </td>
                   </tr>

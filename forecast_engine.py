@@ -1030,7 +1030,7 @@ class ForecastEngine:
 
         return baseline
 
-    def _apply_category_targets(self, combined_df, history_df, start_date, horizon):
+    def _apply_category_targets(self, combined_df, history_df, start_date, horizon, category_aliases=None):
         if combined_df.empty or 'type' not in combined_df.columns:
             return combined_df
 
@@ -1043,6 +1043,35 @@ class ForecastEngine:
 
         combined_df = combined_df.copy()
         injected_rows = []
+
+        if category_aliases is None:
+            category_aliases = self._category_alias_map(history_df)
+
+        category_history = {}
+
+        def _alias_label(category_name):
+            alias_info = category_aliases.get(category_name) if category_aliases else None
+            if alias_info:
+                primary = alias_info.get('primary') or {}
+                return primary.get('label') or alias_info.get('display') or category_name.replace('_', ' ').title()
+            return category_name.replace('_', ' ').title()
+
+        def _format_description(category_name, flavor):
+            base_label = _alias_label(category_name)
+            if flavor == 'baseline':
+                return f"{base_label} (modeled baseline)"
+            if flavor == 'reconciliation':
+                return f"{base_label} (reconciliation)"
+            return f"{base_label} ({flavor})"
+
+        def _category_history_dates(category_name):
+            if category_name not in category_history:
+                cat_hist = history_df[history_df['category'] == category_name]
+                if cat_hist.empty:
+                    category_history[category_name] = pd.Series(dtype='datetime64[ns]')
+                else:
+                    category_history[category_name] = pd.to_datetime(cat_hist['date'], errors='coerce').dropna()
+            return category_history[category_name]
 
         def _compute_capped_event_amount(category_name, total_amount, events_count):
             if events_count <= 0:
@@ -1135,17 +1164,32 @@ class ForecastEngine:
                         estimated_events = 1
                     num_events = max(1, min(max_events, estimated_events))
                     event_amount = _compute_capped_event_amount(category, target_total, num_events)
+
+                    history_dates = _category_history_dates(category)
+                    preferred_weekday = int(history_dates.dt.weekday.mode().iloc[0]) if not history_dates.empty else None
+                    preferred_dom = int(history_dates.dt.day.mode().iloc[0]) if not history_dates.empty else None
+
+                    candidate_events = []
                     for idx in range(num_events):
                         day_offset = min(idx * interval_days, max(horizon - 1, 0))
                         event_date = start_date + timedelta(days=day_offset)
-                        injected_rows.append({
+                        candidate_events.append({
                             'date': event_date,
                             'amount': float(event_amount),
                             'category': category,
-                            'description': f"{category.replace('_', ' ').title()} baseline adjustment",
+                            'description': _format_description(category, 'baseline'),
                             'type': 'forecast',
                             'projection_source': 'reconciliation'
                         })
+
+                    snapped_events = self._snap_category_events(
+                        candidate_events,
+                        preferred_dom if interval_days >= 28 else None,
+                        preferred_weekday,
+                        start_date,
+                        horizon,
+                    )
+                    injected_rows.extend(snapped_events or candidate_events)
                 continue
 
             scale = target_total / predicted_total if abs(predicted_total) > 1e-6 else 1.0
@@ -1195,17 +1239,31 @@ class ForecastEngine:
             num_events = max(1, min(max_events, estimated_events))
             per_event = _compute_capped_event_amount(category, residual, num_events)
 
+            history_dates = _category_history_dates(category)
+            preferred_weekday = int(history_dates.dt.weekday.mode().iloc[0]) if not history_dates.empty else None
+            preferred_dom = int(history_dates.dt.day.mode().iloc[0]) if not history_dates.empty else None
+
+            candidate_events = []
             for idx in range(num_events):
                 day_offset = min(idx * interval_days, max(horizon - 1, 0))
                 event_date = start_date + timedelta(days=day_offset)
-                injected_rows.append({
+                candidate_events.append({
                     'date': event_date,
                     'amount': float(per_event),
                     'category': category,
-                    'description': f"{category.replace('_', ' ').title()} reconciliation",
+                    'description': _format_description(category, 'reconciliation'),
                     'type': 'forecast',
                     'projection_source': 'reconciliation'
                 })
+
+            snapped_events = self._snap_category_events(
+                candidate_events,
+                preferred_dom if interval_days >= 28 else None,
+                preferred_weekday,
+                start_date,
+                horizon,
+            )
+            injected_rows.extend(snapped_events or candidate_events)
 
         if injected_rows:
             combined_df = pd.concat([combined_df, pd.DataFrame(injected_rows)], ignore_index=True)
@@ -2474,7 +2532,7 @@ class ForecastEngine:
             combined_df['date'] = pd.to_datetime(combined_df['date'])
             combined_df = combined_df.sort_values('date')
 
-            combined_df = self._apply_category_targets(combined_df, history_df, start_date, horizon)
+            combined_df = self._apply_category_targets(combined_df, history_df, start_date, horizon, category_aliases)
             combined_df = combined_df.sort_values('date').reset_index(drop=True)
 
             # Calculate running balance

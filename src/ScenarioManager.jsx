@@ -79,60 +79,51 @@ export default function ScenarioManager({
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 overflow-hidden">
-      <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-4">
-        <div className="flex items-center gap-2">
-          <span className="text-2xl">�</span>
-          <h2 className="text-xl font-bold text-white">Scenarios</h2>
-        </div>
-        <p className="text-purple-100 text-xs mt-1">
-          Save & compare plans
-        </p>
-      </div>
-      <div className="p-6">
-
+    <div>
       {/* Save Button */}
       <button
         onClick={() => setShowSaveDialog(true)}
-        className="w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg font-medium transition-colors mb-4 flex items-center justify-center gap-2"
+        className="w-full metallic-button px-4 py-3 rounded-lg text-sm font-semibold text-white mb-3 flex items-center justify-center gap-2 hover:scale-105 transition-transform"
       >
-        <span className="text-xl">💾</span>
-        <span>Save Current as New Scenario</span>
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+        </svg>
+        <span>Save as Scenario</span>
       </button>
 
       {/* Save Dialog */}
       {showSaveDialog && (
-        <div className="mb-4 p-4 bg-blue-50 rounded-lg border-2 border-blue-300">
-          <h4 className="font-semibold mb-3">Save Current Scenario</h4>
+        <div className="mb-4 rounded-lg border border-white/15 glass-card-light p-4">
+          <h4 className="mb-3 text-sm font-semibold text-white">Save Current Scenario</h4>
           <div className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="mb-1 block text-[11px] uppercase tracking-wide text-white/60">
                 Scenario Name *
               </label>
               <input
                 type="text"
                 value={newScenarioName}
                 onChange={(e) => setNewScenarioName(e.target.value)}
-                placeholder="e.g., 'With Vacation', 'After Raise', 'Emergency Fund Goal'"
-                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="e.g., With Vacation, After Raise, Emergency Fund Goal"
+                className="metallic-input w-full rounded-lg p-2 text-white placeholder-white/40 focus:ring-2 focus:ring-cyan-400/40"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="mb-1 block text-[11px] uppercase tracking-wide text-white/60">
                 Description (optional)
               </label>
               <textarea
                 value={newScenarioDescription}
                 onChange={(e) => setNewScenarioDescription(e.target.value)}
                 placeholder="Brief description of what's different in this scenario"
-                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="metallic-input w-full rounded-lg p-2 text-white placeholder-white/40 focus:ring-2 focus:ring-cyan-400/40"
                 rows="2"
               />
             </div>
             <div className="flex gap-2">
               <button
                 onClick={handleSaveScenario}
-                className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+                className="flex-1 rounded-lg border border-green-400/40 bg-green-500/10 px-4 py-2 text-xs font-semibold text-green-200 transition-all hover:bg-green-500/20"
               >
                 ✅ Save
               </button>
@@ -142,7 +133,7 @@ export default function ScenarioManager({
                   setNewScenarioName('');
                   setNewScenarioDescription('');
                 }}
-                className="flex-1 px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-lg font-medium transition-colors"
+                className="flex-1 rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-xs font-semibold text-gray-300 transition-all hover:bg-white/10"
               >
                 Cancel
               </button>
@@ -151,81 +142,39 @@ export default function ScenarioManager({
         </div>
       )}
 
-      {/* Scenarios List */}
-      <div className="space-y-2">
-        {scenarios.map((scenario) => (
-          <div
-            key={scenario.id}
-            className={`p-4 rounded-lg border-2 transition-all ${
-              selectedForComparison.includes(scenario.id)
-                ? 'bg-purple-50 border-purple-400'
-                : 'bg-gray-50 border-gray-200 hover:border-gray-300'
-            }`}
-          >
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <h4 className="font-semibold text-lg">{scenario.name}</h4>
-                  {scenario.isDefault && (
-                    <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
-                      Default
-                    </span>
-                  )}
-                </div>
-                {scenario.description && (
-                  <p className="text-sm text-gray-600 mb-2">{scenario.description}</p>
-                )}
-                <div className="flex items-center gap-4 text-xs text-gray-500">
-                  <span>💰 Starting: ${scenario.openingBalance.toFixed(2)}</span>
-                  <span>📋 {scenario.scheduled.length} scheduled items</span>
-                  <span>🕒 {new Date(scenario.createdAt).toLocaleDateString()}</span>
-                </div>
-              </div>
-              
-              <div className="flex flex-col gap-2">
-                <button
-                  onClick={() => handleLoadScenario(scenario)}
-                  className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors"
-                >
-                  Load
-                </button>
-                {!scenario.isDefault && (
-                  <>
-                    <button
-                      onClick={() => toggleComparisonSelection(scenario.id)}
-                      className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                        selectedForComparison.includes(scenario.id)
-                          ? 'bg-purple-600 text-white'
-                          : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
-                      }`}
-                    >
-                      {selectedForComparison.includes(scenario.id) ? '✓ Compare' : 'Compare'}
-                    </button>
-                    <button
-                      onClick={() => handleDeleteScenario(scenario.id)}
-                      className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded text-sm font-medium transition-colors"
-                    >
-                      Delete
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
+      {/* Current Scenario Display */}
+      <div className="mb-3 rounded-lg glass-card-light p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-white">Current Plan</h3>
+          <span className="px-2 py-0.5 bg-cyan-500 bg-opacity-30 text-cyan-300 text-xs rounded-full">Default</span>
+        </div>
+        <p className="mb-2 text-xs text-gray-300">Your current financial setup</p>
+        
+        <div className="space-y-1 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-cyan-400">🔥 Starting:</span>
+            <span className="font-bold text-white">${openingBalance?.toFixed(2) || '0.00'}</span>
           </div>
-        ))}
+          <div className="flex items-center justify-between">
+            <span className="text-gray-300">📋 {scheduled?.length || 0} scheduled</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-gray-300">🕒 {new Date().toLocaleDateString()}</span>
+          </div>
+        </div>
       </div>
 
       {/* Comparison Mode */}
       {selectedForComparison.length > 1 && (
-        <div className="mt-4 p-4 bg-purple-50 rounded-lg border-2 border-purple-300">
-          <div className="flex items-center justify-between mb-2">
+        <div className="mt-4 rounded-lg border border-purple-400/30 glass-card-light p-4">
+          <div className="mb-2 flex items-center justify-between">
             <div>
-              <h4 className="font-semibold">Selected for Comparison</h4>
-              <p className="text-sm text-gray-600">{selectedForComparison.length} scenarios selected</p>
+              <h4 className="text-sm font-semibold text-white">Selected for Comparison</h4>
+              <p className="text-xs text-purple-200">{selectedForComparison.length} scenarios selected</p>
             </div>
             <button
               onClick={() => setShowComparison(!showComparison)}
-              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
+              className="rounded-lg border border-purple-400/40 bg-purple-500/10 px-4 py-2 text-xs font-semibold text-purple-100 transition-all hover:bg-purple-500/20"
             >
               {showComparison ? 'Hide' : 'Show'} Comparison
             </button>
@@ -245,25 +194,25 @@ export default function ScenarioManager({
                   .reduce((sum, s) => sum + Math.abs(s.amount), 0);
                 
                 return (
-                  <div key={id} className="p-3 bg-white rounded-lg border">
-                    <h5 className="font-semibold mb-2">{scenario.name}</h5>
-                    <div className="space-y-1 text-sm">
+                  <div key={id} className="glass-card rounded-lg border border-white/10 p-3">
+                    <h5 className="mb-2 text-sm font-semibold text-white">{scenario.name}</h5>
+                    <div className="space-y-1 text-xs">
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Balance:</span>
-                        <span className="font-medium">${scenario.openingBalance.toFixed(2)}</span>
+                        <span className="text-gray-300">Balance:</span>
+                        <span className="font-medium text-white">${scenario.openingBalance.toFixed(2)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Income:</span>
-                        <span className="font-medium text-green-600">+${totalIncome.toFixed(2)}</span>
+                        <span className="text-gray-300">Income:</span>
+                        <span className="font-medium text-green-300">+${totalIncome.toFixed(2)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Expenses:</span>
-                        <span className="font-medium text-red-600">-${totalExpenses.toFixed(2)}</span>
+                        <span className="text-gray-300">Expenses:</span>
+                        <span className="font-medium text-red-300">-${totalExpenses.toFixed(2)}</span>
                       </div>
-                      <div className="flex justify-between pt-2 border-t">
-                        <span className="text-gray-600">Net:</span>
-                        <span className={`font-bold ${(totalIncome - totalExpenses) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          ${(totalIncome - totalExpenses).toFixed(2)}
+                      <div className="flex justify-between border-t border-white/10 pt-2">
+                        <span className="text-gray-300">Net:</span>
+                        <span className={`font-bold ${(totalIncome - totalExpenses) >= 0 ? 'text-green-300' : 'text-red-300'}`}>
+                          {(totalIncome - totalExpenses).toFixed(2)}
                         </span>
                       </div>
                     </div>
@@ -276,15 +225,17 @@ export default function ScenarioManager({
       )}
 
       {/* Tips */}
-      <div className="mt-4 p-3 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg text-sm">
-        <span className="font-medium">💡 Pro Tips:</span>
-        <ul className="mt-2 space-y-1 text-gray-700 ml-4 list-disc">
-          <li>Save your current setup before making big changes</li>
-          <li>Create scenarios for different life events (job change, moving, etc.)</li>
-          <li>Use comparison mode to see which option is best</li>
-          <li>Keep your base scenario updated as things change</li>
+      <div className="mt-3 rounded-lg glass-card-light p-3">
+        <div className="mb-2 flex items-center gap-2">
+          <span className="text-base">💡</span>
+          <h4 className="text-xs font-semibold text-white">Pro Tips:</h4>
+        </div>
+        <ul className="space-y-1 text-xs leading-snug text-gray-300">
+          <li>• Save setup before big changes</li>
+          <li>• Create scenarios for life events</li>
+          <li>• Use comparison to pick best option</li>
+          <li>• Update base scenario regularly</li>
         </ul>
-      </div>
       </div>
     </div>
   );

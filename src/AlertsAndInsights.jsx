@@ -154,110 +154,88 @@ export default function AlertsAndInsights({
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl border-2 border-gray-200 overflow-hidden">
-      <div className="bg-gradient-to-r from-orange-600 to-red-600 px-6 py-4">
+    <div>
+      {/* Compact Threshold Setting */}
+      <div className="glass-card-light rounded-lg p-2 mb-3">
+        <label className="block text-xs text-cyan-400 mb-1">Alert Threshold</label>
         <div className="flex items-center gap-2">
-          <span className="text-2xl">🚨</span>
-          <h2 className="text-2xl font-bold text-white">Alerts & Insights</h2>
+          <span className="text-xs text-white">$</span>
+          <input
+            type="number"
+            value={lowBalanceThreshold}
+            onChange={(e) => onThresholdChange(parseFloat(e.target.value) || 0)}
+            className="flex-1 metallic-input px-2 py-1 rounded text-xs text-white"
+            step="100"
+          />
         </div>
-        <p className="text-orange-100 text-sm mt-1">
-          Smart recommendations and balance warnings
-        </p>
       </div>
-      
-      <div className="p-6">
-        <div className="space-y-4">
-          {/* Low Balance Threshold Setting */}
-          <div className="bg-gray-50 rounded-lg p-4 border-2 border-gray-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold text-gray-800">⚙️ Alert Threshold</h3>
-                <p className="text-sm text-gray-600 mt-1">Warn when balance falls below</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xl font-bold text-gray-700">$</span>
-                <input
-                  type="number"
-                  value={lowBalanceThreshold}
-                  onChange={(e) => onThresholdChange(parseFloat(e.target.value) || 0)}
-                  className="w-28 p-2 text-lg font-bold border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  step="100"
-                />
+
+      {/* Compact Alerts */}
+      {alerts.length > 0 && (
+        <div className="space-y-2 mb-3">
+          {alerts.map((alert, index) => (
+            <div
+              key={index}
+              className={`glass-card-light rounded-lg p-2 border-l-2 ${
+                alert.type === 'critical' ? 'border-red-500' :
+                alert.type === 'danger' ? 'border-orange-500' :
+                alert.type === 'success' ? 'border-green-500' :
+                'border-yellow-500'
+              }`}
+            >
+              <div className="flex items-start gap-2">
+                <span className="text-base flex-shrink-0 mt-0.5">{alert.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <div className={`text-xs font-semibold ${
+                    alert.type === 'critical' ? 'text-red-400' :
+                    alert.type === 'danger' ? 'text-orange-400' :
+                    alert.type === 'success' ? 'text-green-400' :
+                    'text-yellow-400'
+                  }`}>
+                    {alert.title}
+                  </div>
+                  <div className="text-xs text-white leading-snug mt-0.5">{alert.message}</div>
+                  {alert.detail && (
+                    <div className="text-xs text-gray-400 mt-0.5">{alert.detail}</div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-
-      {/* Alerts Section */}
-      {alerts.length > 0 && (
-        <div>
-          <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-            <span>🔔</span>
-            <span>Active Alerts</span>
-          </h4>
-          <div className="space-y-3">
-            {alerts.map((alert, index) => (
-              <div
-                key={index}
-                className={`p-4 border-2 rounded-lg ${alertStyles[alert.type]}`}
-              >
-                <div className="flex items-start gap-3">
-                  <span className="text-3xl">{alert.icon}</span>
-                  <div className="flex-1">
-                    <h4 className="font-semibold text-lg mb-1">{alert.title}</h4>
-                    <p className="mb-1">{alert.message}</p>
-                    <p className="text-sm opacity-80">{alert.detail}</p>
-                    {alert.action && (
-                      <div className="mt-2 text-sm font-medium opacity-90">
-                        💡 {alert.action}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          ))}
         </div>
       )}
 
-      {/* Smart Recommendations */}
+      {/* Compact Recommendations */}
       {recommendations.length > 0 && (
-        <div>
-          <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-            <span>💡</span>
-            <span>Smart Recommendations</span>
-          </h4>
-          <div className="space-y-3">
-            {recommendations.map((rec, index) => (
-              <div
-                key={index}
-                className={`p-4 border-2 rounded-lg ${recommendationStyles[rec.type]}`}
-              >
-                <div className="flex items-start gap-3">
-                  <span className="text-3xl">{rec.icon}</span>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <h4 className="font-semibold text-lg">{rec.title}</h4>
-                      <span className={`text-xs px-2 py-1 rounded-full ${
-                        rec.confidence === 'high' ? 'bg-green-200 text-green-800' :
-                        rec.confidence === 'medium' ? 'bg-yellow-200 text-yellow-800' :
-                        'bg-gray-200 text-gray-800'
-                      }`}>
-                        {rec.confidence} confidence
-                      </span>
-                    </div>
-                    <p className="mb-1">{rec.message}</p>
-                    <p className="text-sm font-medium opacity-90">
-                      💰 Impact: {rec.impact}
-                    </p>
-                  </div>
+        <div className="space-y-2 mb-3">
+          <div className="text-xs font-semibold text-cyan-400 mb-1">💡 Suggestions</div>
+          {recommendations.map((rec, index) => (
+            <div
+              key={index}
+              className="glass-card-light rounded-lg p-2"
+            >
+              <div className="flex items-start gap-2">
+                <span className="text-base flex-shrink-0 mt-0.5">{rec.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-semibold text-white">{rec.title}</div>
+                  <div className="text-xs text-gray-400 leading-snug mt-0.5">{rec.message}</div>
+                  {rec.impact && (
+                    <div className="text-xs text-cyan-300 mt-0.5">→ {rec.impact}</div>
+                  )}
                 </div>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
       )}
+
+      {alerts.length === 0 && recommendations.length === 0 && (
+        <div className="glass-card-light rounded-lg p-3 text-center">
+          <div className="text-2xl mb-1">✨</div>
+          <div className="text-xs text-green-400 font-semibold">All Clear</div>
+          <div className="text-xs text-gray-400 mt-1">No alerts</div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
